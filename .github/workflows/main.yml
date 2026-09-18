@@ -1,0 +1,47 @@
+name: Sofia Luxury Video Creator
+
+on:
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: "Video topic"
+        required: false
+        default: "Latest luxury technology and lifestyle trends"
+
+jobs:
+  create-video:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download Sofia Luxury code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          pip install -r requirements.txt
+
+      - name: Create video
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          VIDEO_TOPIC: ${{ inputs.topic }}
+        run: |
+          python -c "import asyncio, os; from auto_scheduler import AutoScheduler; asyncio.run(AutoScheduler(language='english', niche='tech').create_content(os.environ.get('VIDEO_TOPIC') or None))"
+
+      - name: Upload generated videos
+        uses: actions/upload-artifact@v4
+        with:
+          name: sofia-luxury-video
+          path: |
+            output/*.mp4
+            output/*.jpg
+            output/*.json
+          if-no-files-found: warn
