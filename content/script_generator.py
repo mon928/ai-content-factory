@@ -1,15 +1,19 @@
 """
 ✍️ SOFIA LUXURY AI SCRIPT GENERATOR
 
-Sofia is the AI voice and creative storyteller behind Sofia Luxury.
-Creates natural, engaging scripts for Sofia Luxury Story content.
+Sofia is the central AI storyteller and creative personality
+behind Sofia Luxury.
+
+Creates approximately 5-minute Sofia Luxury Story scripts
+for luxury, technology, fashion, travel, cars, lifestyle,
+adventure, action, drama and other interesting topics.
 
 Supports: English, Urdu, Hindi, Punjabi
 """
 
 import os
-import json
 from typing import Dict, List
+
 from loguru import logger
 
 try:
@@ -24,66 +28,83 @@ load_dotenv()
 
 
 class ScriptGenerator:
-    """Generate natural, engaging scripts for Sofia Luxury."""
+    """Generate approximately 5-minute Sofia Luxury Stories."""
 
-    def __init__(self, language: str = "english", niche: str = "luxury"):
-        self.client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-        self.language = language
-        self.niche = niche
+    # ---------------------------------------------------------
+    # STORY SETTINGS
+    # ---------------------------------------------------------
+
+    TARGET_WORDS_MIN = 700
+    TARGET_WORDS_MAX = 800
+    WORDS_PER_MINUTE = 150
+
+    def __init__(
+        self,
+        language: str = "english",
+        niche: str = "luxury"
+    ):
+        api_key = os.getenv("GROQ_API_KEY")
+
+        if not api_key:
+            raise ValueError(
+                "GROQ_API_KEY is not configured."
+            )
+
+        self.client = Groq(api_key=api_key)
+
+        self.language = language.lower()
+        self.niche = niche.lower()
 
         self.style_guides = {
             "english": {
-                "tone": "elegant, confident and friendly luxury storyteller",
-                "phrases": [
-                    "Honestly...",
-                    "Here's the thing...",
-                    "You know what?",
-                    "Check this out..."
-                ],
+                "tone": (
+                    "elegant, confident, warm, intelligent "
+                    "and conversational luxury storyteller"
+                ),
                 "rules": (
-                    "Use contractions naturally. "
-                    "Sound conversational, confident and elegant. "
-                    "Keep the language easy to understand."
+                    "Use natural conversational English. "
+                    "Use contractions where appropriate. "
+                    "Keep sentences easy to speak aloud. "
+                    "Avoid robotic, repetitive or overly formal language."
                 )
             },
+
             "urdu": {
-                "tone": "warm and elegant luxury storyteller",
-                "phrases": [
-                    "Dekho...",
-                    "Aap log...",
-                    "Mujhe batao...",
-                    "Yaqeen nahi hoga..."
-                ],
+                "tone": (
+                    "warm, elegant and engaging luxury storyteller"
+                ),
                 "rules": (
-                    "Mix Roman Urdu with occasional Urdu words. "
-                    "Keep the tone natural, warm and engaging."
+                    "Use natural Roman Urdu with occasional Urdu words. "
+                    "Keep the language easy to understand and natural "
+                    "for spoken narration."
                 )
             },
+
             "hindi": {
-                "tone": "enthusiastic and elegant luxury storyteller",
-                "phrases": [
-                    "Dekho bhai...",
-                    "Aapko pata hai...",
-                    "Main bata raha hoon..."
-                ],
+                "tone": (
+                    "modern, warm, elegant and engaging storyteller"
+                ),
                 "rules": (
-                    "Use natural Hinglish where appropriate. "
-                    "Keep the tone modern, warm and engaging."
+                    "Use natural Hindi or Hinglish where appropriate. "
+                    "Keep the narration conversational and easy to speak."
                 )
             },
+
             "punjabi": {
-                "tone": "warm and elegant Punjabi storyteller",
-                "phrases": [
-                    "Sunno ji...",
-                    "Tusi jaande ho...",
-                    "Main dassan..."
-                ],
+                "tone": (
+                    "warm, modern, elegant and engaging storyteller"
+                ),
                 "rules": (
-                    "Mix Roman Punjabi with English naturally. "
-                    "Keep the tone warm, modern and engaging."
+                    "Use natural Roman Punjabi with English where appropriate. "
+                    "Keep the narration conversational and easy to speak."
                 )
             }
         }
+
+
+    # =========================================================
+    # GENERATE SCRIPT
+    # =========================================================
 
     def generate_script(
         self,
@@ -91,108 +112,138 @@ class ScriptGenerator:
         duration_minutes: int = 5
     ) -> Dict:
 
+        # -----------------------------------------------------
+        # SAFETY / DEFAULTS
+        # -----------------------------------------------------
+
+        if not isinstance(topic, dict):
+            topic = {
+                "topic": str(topic)
+            }
+
+        topic_text = str(
+            topic.get(
+                "topic",
+                "The latest luxury and technology trends"
+            )
+        ).strip()
+
+        if not topic_text:
+            topic_text = (
+                "The latest luxury and technology trends"
+            )
+
+        duration_minutes = max(
+            1,
+            int(duration_minutes)
+        )
+
+        # For Sofia Luxury Story, approximately 5 minutes
+        # means roughly 700–800 spoken words.
+        if duration_minutes == 5:
+            target_min = self.TARGET_WORDS_MIN
+            target_max = self.TARGET_WORDS_MAX
+        else:
+            target_min = max(
+                150,
+                int(duration_minutes * 140)
+            )
+
+            target_max = max(
+                target_min + 50,
+                int(duration_minutes * 160)
+            )
+
         style = self.style_guides.get(
             self.language,
             self.style_guides["english"]
         )
 
         logger.info(
-            f"✍️ Generating {self.language} Sofia Luxury script: "
-            f"{topic['topic'][:50]}..."
+            f"✍️ Generating {duration_minutes}-minute "
+            f"Sofia Luxury Story"
+        )
+
+        logger.info(
+            f"🎯 Target: {target_min}-{target_max} words"
         )
 
         prompt = self._build_prompt(
-            topic,
-            style,
-            duration_minutes
+            topic=topic,
+            style=style,
+            duration=duration_minutes,
+            target_min=target_min,
+            target_max=target_max
         )
 
+        # -----------------------------------------------------
+        # GROQ
+        # -----------------------------------------------------
+
         try:
+
             response = self.client.chat.completions.create(
                 model="openai/gpt-oss-120b",
+
                 messages=[
                     {
                         "role": "system",
-                        "content": f"""
-You are Sofia, the official AI voice and creative storyteller
-behind Sofia Luxury.
-
-Sofia Luxury is a premium digital media brand creating engaging
-stories about luxury lifestyle, technology, fashion, travel,
-cars, beauty, business, premium products and interesting trends.
-
-IDENTITY:
-- Your name is Sofia.
-- Your brand is Sofia Luxury.
-- You are the AI personality and storyteller behind Sofia Luxury.
-- Sofia must remain the central personality of the content.
-- When appropriate, naturally introduce yourself as Sofia.
-- You may say "I'm Sofia" or "This is Sofia from Sofia Luxury"
-  when it fits naturally.
-- Do not introduce yourself in every story unless appropriate.
-- Never present yourself as another brand or another AI personality.
-- Write as if Sofia is personally telling the story to her audience.
-
-SOFIA'S PERSONALITY:
-- Elegant
-- Confident
-- Warm
-- Intelligent
-- Curious
-- Modern
-- Engaging
-- Sophisticated without sounding arrogant
-
-SOFIA LUXURY STORY:
-- Every story must feel like Sofia is telling it.
-- Sofia remains the central character or narrator even when
-  the subject is technology, cars, fashion, travel, drama,
-  adventure, action or another genre.
-- The genre may change, but Sofia's identity must remain consistent.
-- Create strong curiosity and emotional storytelling.
-- Use vivid but truthful descriptions.
-- Keep the audience interested from beginning to end.
-- Avoid robotic or generic writing.
-- Do not force the name Sofia into every sentence.
-- Use Sofia Luxury naturally when appropriate.
-
-CONTENT RULES:
-{style['rules']}
-
-- Use these phrases naturally when they fit:
-  {', '.join(style['phrases'])}
-
-- Include:
-  Hook → Introduction → Main Story → Interesting Details
-  → Sofia's Perspective → Recap → CTA
-
-- Target approximately {duration_minutes} minutes.
-"""
+                        "content": self._system_prompt(
+                            style=style,
+                            duration=duration_minutes,
+                            target_min=target_min,
+                            target_max=target_max
+                        )
                     },
                     {
                         "role": "user",
                         "content": prompt
                     }
                 ],
-                temperature=0.9,
+
+                temperature=0.85,
+
                 max_tokens=3000
             )
 
-            script_text = response.choices[0].message.content
-            script_text = self._humanize(script_text)
+            script_text = (
+                response.choices[0]
+                .message
+                .content
+                .strip()
+            )
 
-            word_count = len(script_text.split())
-            estimated_duration = word_count / 150
+            # -------------------------------------------------
+            # CLEAN OUTPUT
+            # -------------------------------------------------
+
+            script_text = self._clean_script(
+                script_text
+            )
+
+            word_count = len(
+                script_text.split()
+            )
+
+            estimated_duration = (
+                word_count /
+                self.WORDS_PER_MINUTE
+            )
 
             result = {
-                "topic": topic["topic"],
+                "topic": topic_text,
                 "script": script_text,
                 "word_count": word_count,
                 "estimated_duration_min": round(
                     estimated_duration,
                     1
                 ),
+                "target_duration_min": duration_minutes,
+                "target_words": (
+                    f"{target_min}-{target_max}"
+                ),
                 "language": self.language,
+                "niche": self.niche,
                 "source_trend": topic.get(
                     "source",
                     "Unknown"
@@ -206,114 +257,383 @@ CONTENT RULES:
             logger.info(
                 f"✅ Sofia script generated: "
                 f"{word_count} words, "
-                f"~{estimated_duration:.1f} min"
+                f"~{estimated_duration:.1f} minutes"
             )
+
+            # -------------------------------------------------
+            # WORD COUNT NOTICE
+            # -------------------------------------------------
+
+            if word_count < target_min:
+
+                logger.warning(
+                    f"⚠️ Script is shorter than target: "
+                    f"{word_count} words"
+                )
+
+            elif word_count > target_max:
+
+                logger.warning(
+                    f"⚠️ Script is longer than target: "
+                    f"{word_count} words"
+                )
 
             return result
 
         except Exception as e:
+
             logger.error(
-                f"Script generation failed: {e}"
+                f"❌ Script generation failed: {e}"
             )
 
             return {
-                "topic": topic["topic"],
+                "topic": topic_text,
                 "script": "",
+                "word_count": 0,
+                "estimated_duration_min": 0,
+                "target_duration_min": duration_minutes,
+                "language": self.language,
+                "niche": self.niche,
                 "error": str(e)
             }
+
+
+    # =========================================================
+    # SYSTEM PROMPT
+    # =========================================================
+
+    def _system_prompt(
+        self,
+        style: Dict,
+        duration: int,
+        target_min: int,
+        target_max: int
+    ) -> str:
+
+        return f"""
+You are Sofia, the official AI storyteller and creative
+personality behind Sofia Luxury.
+
+YOUR IDENTITY:
+
+- Your name is Sofia.
+- Your brand is Sofia Luxury.
+- Sofia is the central personality of every story.
+- Sofia is the narrator and, when the genre allows it,
+  the central character.
+- Never replace Sofia with another fictional host.
+- Never make another character the permanent narrator.
+- Do not present yourself as another brand or AI.
+- The audience should feel that Sofia is personally telling
+  them the story.
+
+SOFIA'S PERSONALITY:
+
+- Elegant
+- Confident
+- Warm
+- Intelligent
+- Curious
+- Modern
+- Sophisticated
+- Emotionally engaging
+- Natural and conversational
+
+STORY IDENTITY:
+
+Every piece of content is a "Sofia Luxury Story."
+
+The topic may be about:
+
+- Luxury
+- Technology
+- Fashion
+- Cars
+- Travel
+- Beauty
+- Business
+- Lifestyle
+- Adventure
+- Action
+- Drama
+- Mystery
+- Interesting real-world trends
+
+The genre may change, but Sofia's identity must remain
+consistent.
+
+If the story is action:
+Sofia should be the central character or the person
+experiencing and narrating the action.
+
+If the story is adventure:
+Sofia should be at the center of the adventure.
+
+If the story is technology:
+Sofia should personally explore, explain or investigate
+the technology.
+
+If the story is travel:
+Sofia should be the central storyteller experiencing
+the destination.
+
+If the story is luxury:
+Sofia should guide the audience through the luxury experience.
+
+If the story is mystery or drama:
+Sofia should be the central perspective through which
+the audience experiences the story.
+
+IMPORTANT:
+
+Do NOT force the name "Sofia" into every sentence.
+
+Instead, make Sofia's presence clear through the narration,
+perspective, actions and storytelling.
+
+VOICEOVER STYLE:
+
+{style["tone"]}
+
+{style["rules"]}
+
+Write for spoken narration.
+
+Use:
+
+- Short and medium-length sentences
+- Natural pauses through punctuation
+- Strong transitions
+- Emotional variation
+- Curiosity
+- Vivid but believable descriptions
+- Clear storytelling
+
+Avoid:
+
+- Robotic language
+- Repetitive sentences
+- Excessive headings
+- Bullet points in the final story
+- Stage directions
+- [pause]
+- [laughs]
+- [chuckles]
+- [music]
+- Bracketed instructions
+- Fake quotes
+- Unsupported statistics
+- Invented facts
+- Unverified claims
+
+Do not write production instructions.
+The output must be a clean narration script.
+
+DURATION:
+
+The target is approximately {duration} minutes.
+
+Target approximately:
+
+{target_min}-{target_max} words.
+
+Stay close to this range.
+
+Do not produce a very short script.
+
+STRUCTURE:
+
+1. HOOK
+Open immediately with something that creates curiosity.
+
+2. SOFIA INTRODUCTION
+Naturally establish Sofia's presence when appropriate.
+
+3. STORY SETUP
+Explain what is happening and why it matters.
+
+4. MAIN STORY
+Develop the story with interesting details and progression.
+
+5. SOFIA'S PERSPECTIVE
+Give Sofia a natural observation or reaction.
+
+6. CLIMAX / KEY REVEAL
+Give the audience the most interesting moment.
+
+7. LUXURY CONNECTION
+Connect the story to luxury, premium lifestyle or
+high-end culture when relevant.
+
+8. CONCLUSION
+Bring the story together naturally.
+
+9. CTA
+End with a short natural invitation to follow Sofia Luxury,
+watch another Sofia Luxury Story, or engage with the topic.
+
+The final script must feel like one continuous,
+professional spoken story.
+"""
+
+
+    # =========================================================
+    # USER PROMPT
+    # =========================================================
 
     def _build_prompt(
         self,
         topic: Dict,
         style: Dict,
-        duration: int
+        duration: int,
+        target_min: int,
+        target_max: int
     ) -> str:
 
+        topic_text = str(
+            topic.get(
+                "topic",
+                "The latest luxury trend"
+            )
+        )
+
+        source = topic.get(
+            "source",
+            "Trending"
+        )
+
         return f"""
-Create a Sofia Luxury Story about this topic:
+Create a complete Sofia Luxury Story based on this topic:
 
 TOPIC:
-{topic['topic']}
+{topic_text}
 
 SOURCE:
-{topic.get('source', 'trending')}
+{source}
 
-The story must sound like Sofia is personally presenting it
-to the Sofia Luxury audience.
+BRAND:
+Sofia Luxury
 
-STRUCTURE:
+CENTRAL CHARACTER / STORYTELLER:
+Sofia
 
-1. HOOK
-Grab attention immediately with a fascinating question,
-surprising fact or intriguing statement.
+TARGET DURATION:
+Approximately {duration} minutes
 
-2. INTRODUCTION
-Briefly introduce the story.
+TARGET WORD COUNT:
+Approximately {target_min}-{target_max} words
 
-3. MAIN STORY
-Explain the most interesting and important details.
+LANGUAGE:
+{self.language}
 
-4. SOFIA'S PERSPECTIVE
-Give Sofia a natural reaction or observation.
-Do not invent personal experiences or facts.
+NICHE:
+{self.niche}
 
-5. LUXURY CONNECTION
-Connect the story to luxury, premium lifestyle or
-interesting high-end culture when relevant.
+The final result must be written as a natural spoken
+narration for Sofia's voice.
 
-6. RECAP
-Bring the main point together.
+Sofia must remain central to the story.
 
-7. CALL TO ACTION
-End with a natural invitation to follow Sofia Luxury,
-watch another Sofia Luxury Story, or engage with the topic.
+Do not simply write a generic article about the topic.
 
-IMPORTANT:
+Turn the topic into an engaging story that Sofia can tell
+to her audience.
 
-- Write in {self.language}.
-- Sound like a real person speaking naturally.
-- Sofia must remain the central personality or narrator.
-- The story can be luxury, technology, fashion, cars,
-  travel, adventure, action, drama or another genre.
-- Keep Sofia's identity consistent regardless of genre.
-- Make the storytelling elegant and engaging.
-- Use sentences suitable for voice narration.
-- Avoid unnecessary repetition.
-- Do not invent statistics, quotes or events.
-- Do not make unsupported claims.
-- Target approximately {duration} minutes.
+Make the opening immediately interesting.
 
-START THE SOFIA LUXURY STORY NOW.
+Build curiosity throughout the story.
+
+Give Sofia a clear perspective.
+
+If the topic is a real-world subject, stay factual and
+do not invent statistics, quotes, events or claims.
+
+If the topic is fictional or clearly presented as a story,
+Sofia may be placed directly inside the fictional narrative.
+
+Keep the writing elegant, cinematic and emotionally engaging
+without becoming unrealistic or overly dramatic.
+
+Do not use:
+
+- [pause]
+- [laughs]
+- [chuckles]
+- [music]
+- stage directions
+- camera directions
+- scene instructions
+- bullet points
+
+Write only the finished spoken narration.
+
+START THE SOFIA LUXURY STORY.
 """
 
-    def _humanize(self, script: str) -> str:
-        import random
 
-        fillers = [
-            "\n\n[chuckles] ",
-            "\n\nWait, let me explain... ",
-            "\n\nYou know what I mean? ",
-            "\n\nHere's what's crazy... ",
-            "\n\n[pause] "
+    # =========================================================
+    # CLEAN SCRIPT
+    # =========================================================
+
+    def _clean_script(
+        self,
+        script: str
+    ) -> str:
+
+        if not script:
+            return ""
+
+        text = script.strip()
+
+        # Remove common markdown formatting
+        text = text.replace(
+            "```text",
+            ""
+        )
+
+        text = text.replace(
+            "```",
+            ""
+        )
+
+        # Remove bracketed production directions
+        unwanted_phrases = [
+            "[pause]",
+            "[Pause]",
+            "[PAUSE]",
+            "[laughs]",
+            "[Laughs]",
+            "[LAUGHS]",
+            "[chuckles]",
+            "[Chuckles]",
+            "[CHUCKLES]",
+            "[music]",
+            "[Music]",
+            "[MUSIC]"
         ]
 
-        lines = script.split("\n")
-        humanized = []
+        for phrase in unwanted_phrases:
 
-        for i, line in enumerate(lines):
+            text = text.replace(
+                phrase,
+                ""
+            )
 
-            humanized.append(line)
+        # Clean excessive blank lines
+        lines = [
+            line.strip()
+            for line in text.splitlines()
+            if line.strip()
+        ]
 
-            if (
-                i > 2
-                and i % random.randint(3, 5) == 0
-                and len(line) > 40
-            ):
-                humanized.append(
-                    random.choice(fillers)
-                )
+        text = "\n\n".join(lines)
 
-        return "\n".join(humanized)
+        return text.strip()
+
+
+    # =========================================================
+    # GENERATE MULTIPLE
+    # =========================================================
 
     def generate_multiple(
         self,
@@ -325,53 +645,119 @@ START THE SOFIA LUXURY STORY NOW.
 
         for topic in topics[:count]:
 
-            script = self.generate_script(topic)
+            try:
 
-            if script and not script.get("error"):
-                scripts.append(script)
+                script = self.generate_script(
+                    topic,
+                    duration_minutes=5
+                )
+
+                if (
+                    script
+                    and not script.get("error")
+                    and script.get("script")
+                ):
+                    scripts.append(script)
+
+            except Exception as e:
+
+                logger.error(
+                    f"Failed to generate script: {e}"
+                )
 
         return scripts
 
 
+# =========================================================
+# TEST
+# =========================================================
+
 if __name__ == "__main__":
 
-    print("\n" + "=" * 60)
-    print("✍️ SOFIA LUXURY AI SCRIPT GENERATOR TEST")
-    print("=" * 60)
-
-    gen = ScriptGenerator(
-        language="english",
-        niche="luxury"
+    print(
+        "\n" + "=" * 60
     )
 
-    test_topic = {
-        "topic": "The world's most luxurious new technology",
-        "source": "Trending",
-        "score": 95
-    }
-
-    result = gen.generate_script(
-        test_topic,
-        duration_minutes=5
+    print(
+        "✍️ SOFIA LUXURY AI SCRIPT GENERATOR TEST"
     )
 
-    if result.get("script"):
+    print(
+        "=" * 60
+    )
 
-        preview = result["script"][:500]
+    try:
 
-        print(preview)
-
-        print(
-            f"\n... (Total: "
-            f"{result['word_count']} words, "
-            f"~{result['estimated_duration_min']} min)"
+        generator = ScriptGenerator(
+            language="english",
+            niche="luxury"
         )
 
-    else:
+        test_topic = {
+            "topic": (
+                "The world's most luxurious "
+                "new technology"
+            ),
+            "source": "Trending",
+            "score": 95
+        }
 
-        print(
-            f"❌ Error: "
-            f"{result.get('error')}"
+        result = generator.generate_script(
+            test_topic,
+            duration_minutes=5
         )
 
-    print("\n✅ Sofia Luxury Test Complete!")
+        if result.get("script"):
+
+            print(
+                "\n✅ SCRIPT GENERATED"
+            )
+
+            print(
+                f"Words: "
+                f"{result['word_count']}"
+            )
+
+            print(
+                f"Estimated duration: "
+                f"{result['estimated_duration_min']} minutes"
+            )
+
+            print(
+                "\nPREVIEW:\n"
+            )
+
+            print(
+                result["script"][:1000]
+            )
+
+        else:
+
+            print(
+                "\n❌ ERROR:"
+            )
+
+            print(
+                result.get(
+                    "error",
+                    "Unknown error"
+                )
+            )
+
+    except Exception as e:
+
+        print(
+            f"\n❌ TEST FAILED: {e}"
+        )
+
+    print(
+        "\n" + "=" * 60
+    )
+
+    print(
+        "✅ Sofia Luxury Script Generator Test Complete"
+    )
+
+    print(
+        "=" * 60
+    )
