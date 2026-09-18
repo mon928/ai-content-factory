@@ -269,11 +269,11 @@ No text, captions, logos or watermarks.
             headers = {
                 "Authorization": f"Bearer {self.api_key}"
             }
-
-            data = {
+                        data = {
                 "prompt": full_prompt,
                 "model": self.model,
                 "size": f"{width}x{height}",
+                "response_format": "url",
             }
 
             files = None
@@ -318,39 +318,59 @@ No text, captions, logos or watermarks.
                 ""
             ).lower()
 
-            # Usually the endpoint returns image bytes directly.
             if "image" in content_type:
                 image_data = response.content
 
-            # Also support a JSON response containing an image URL.
             elif "json" in content_type:
                 try:
                     result = response.json()
-                    image_url = (
-                        result.get("url")
-                        or result.get("image")
-                        or result.get("image_url")
-                    )
+                    image_url = None
+                    image_data = None
 
-                    if not image_url:
+                    if isinstance(result, dict):
+                        data_items = result.get("data", [])
+
+                        if data_items and isinstance(data_items, list):
+                            first_item = data_items[0]
+
+                            if isinstance(first_item, dict):
+                                image_url = first_item.get("url")
+
+                                if not image_url:
+                                    b64_json = first_item.get(
+                                        "b64_json"
+                                    )
+
+                                    if b64_json:
+                                        import base64
+
+                                        image_data = base64.b64decode(
+                                            b64_json
+                                        )
+
+                    if image_url:
+                        image_response = requests.get(
+                            image_url,
+                            timeout=180,
+                        )
+
+                        if image_response.status_code != 200:
+                            logger.error(
+                                "❌ Could not download generated image."
+                            )
+                            return ""
+
+                        image_data = image_response.content
+
+                    if not image_data:
                         logger.error(
-                            "❌ Pollinations returned JSON "
-                            "without an image URL."
+                            "❌ Pollinations JSON did not contain "
+                            "data[0].url or data[0].b64_json."
+                        )
+                        logger.error(
+                            f"Response: {response.text[:1000]}"
                         )
                         return ""
-
-                    image_response = requests.get(
-                        image_url,
-                        timeout=180,
-                    )
-
-                    if image_response.status_code != 200:
-                        logger.error(
-                            "❌ Could not download generated image."
-                        )
-                        return ""
-
-                    image_data = image_response.content
 
                 except Exception as e:
                     logger.error(
@@ -360,7 +380,6 @@ No text, captions, logos or watermarks.
 
             else:
                 image_data = response.content
-
             image = Image.open(
                 BytesIO(image_data)
             )
