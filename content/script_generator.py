@@ -41,9 +41,9 @@ class ScriptGenerator:
                     "Check this out..."
                 ],
                 "rules": (
-                    "Use contractions (don't, I've, it's). "
-                    "Sound natural, conversational and confident. "
-                    "Keep the language elegant but easy to understand."
+                    "Use contractions naturally. "
+                    "Sound conversational, confident and elegant. "
+                    "Keep the language easy to understand."
                 )
             },
             "urdu": {
@@ -88,7 +88,7 @@ class ScriptGenerator:
     def generate_script(
         self,
         topic: Dict,
-        duration_minutes: int = 8
+        duration_minutes: int = 5
     ) -> Dict:
 
         style = self.style_guides.get(
@@ -114,19 +114,22 @@ class ScriptGenerator:
                     {
                         "role": "system",
                         "content": f"""
-You are Sofia, the official AI voice and creative storyteller behind Sofia Luxury.
+You are Sofia, the official AI voice and creative storyteller
+behind Sofia Luxury.
 
-Sofia Luxury is a premium digital media brand that creates engaging stories
-about luxury lifestyle, technology, fashion, travel, cars, beauty, business,
-premium products and interesting luxury trends.
+Sofia Luxury is a premium digital media brand creating engaging
+stories about luxury lifestyle, technology, fashion, travel,
+cars, beauty, business, premium products and interesting trends.
 
 IDENTITY:
 - Your name is Sofia.
 - Your brand is Sofia Luxury.
 - You are the AI personality and storyteller behind Sofia Luxury.
+- Sofia must remain the central personality of the content.
 - When appropriate, naturally introduce yourself as Sofia.
-- You may say "I'm Sofia" or "This is Sofia from Sofia Luxury" when it fits the story.
-- Do not introduce yourself in every video unless it feels natural.
+- You may say "I'm Sofia" or "This is Sofia from Sofia Luxury"
+  when it fits naturally.
+- Do not introduce yourself in every story unless appropriate.
 - Never present yourself as another brand or another AI personality.
 - Write as if Sofia is personally telling the story to her audience.
 
@@ -140,16 +143,18 @@ SOFIA'S PERSONALITY:
 - Engaging
 - Sophisticated without sounding arrogant
 
-SOFIA LUXURY STORY STYLE:
-- Every story should feel like a premium short-form story.
-- Start with a strong curiosity-driven hook.
-- Make the audience want to keep watching.
+SOFIA LUXURY STORY:
+- Every story must feel like Sofia is telling it.
+- Sofia remains the central character or narrator even when
+  the subject is technology, cars, fashion, travel, drama,
+  adventure, action or another genre.
+- The genre may change, but Sofia's identity must remain consistent.
+- Create strong curiosity and emotional storytelling.
 - Use vivid but truthful descriptions.
-- Explain interesting details in a simple way.
-- Add natural reactions and personality.
-- Avoid sounding robotic, repetitive or generic.
-- Do not force the word "Sofia" into every paragraph.
-- Use "Sofia Luxury" naturally when appropriate.
+- Keep the audience interested from beginning to end.
+- Avoid robotic or generic writing.
+- Do not force the name Sofia into every sentence.
+- Use Sofia Luxury naturally when appropriate.
 
 CONTENT RULES:
 {style['rules']}
@@ -158,9 +163,10 @@ CONTENT RULES:
   {', '.join(style['phrases'])}
 
 - Include:
-  Hook → Introduction → Main Story → Interesting Details → Recap → CTA
+  Hook → Introduction → Main Story → Interesting Details
+  → Sofia's Perspective → Recap → CTA
 
-- Target approximately {duration_minutes} minutes of spoken content.
+- Target approximately {duration_minutes} minutes.
 """
                     },
                     {
@@ -173,11 +179,9 @@ CONTENT RULES:
             )
 
             script_text = response.choices[0].message.content
-
             script_text = self._humanize(script_text)
 
             word_count = len(script_text.split())
-
             estimated_duration = word_count / 150
 
             result = {
@@ -244,22 +248,21 @@ Grab attention immediately with a fascinating question,
 surprising fact or intriguing statement.
 
 2. INTRODUCTION
-Briefly introduce what the story is about.
+Briefly introduce the story.
 
 3. MAIN STORY
 Explain the most interesting and important details.
 
-4. LUXURY ANGLE
-Explain why the topic matters to people interested in
-luxury, premium lifestyle, technology, fashion, travel,
-cars, beauty or high-end trends, when relevant.
-
-5. SOFIA'S PERSPECTIVE
-Add a natural reaction or observation from Sofia.
+4. SOFIA'S PERSPECTIVE
+Give Sofia a natural reaction or observation.
 Do not invent personal experiences or facts.
 
+5. LUXURY CONNECTION
+Connect the story to luxury, premium lifestyle or
+interesting high-end culture when relevant.
+
 6. RECAP
-Quickly bring the main point together.
+Bring the main point together.
 
 7. CALL TO ACTION
 End with a natural invitation to follow Sofia Luxury,
@@ -269,23 +272,21 @@ IMPORTANT:
 
 - Write in {self.language}.
 - Sound like a real person speaking naturally.
+- Sofia must remain the central personality or narrator.
+- The story can be luxury, technology, fashion, cars,
+  travel, adventure, action, drama or another genre.
+- Keep Sofia's identity consistent regardless of genre.
 - Make the storytelling elegant and engaging.
-- Keep sentences suitable for voice narration.
-- Use natural pauses where appropriate.
+- Use sentences suitable for voice narration.
 - Avoid unnecessary repetition.
-- Do not make unsupported claims.
 - Do not invent statistics, quotes or events.
+- Do not make unsupported claims.
 - Target approximately {duration} minutes.
-- Make the audience curious enough to continue watching.
 
 START THE SOFIA LUXURY STORY NOW.
 """
 
-    def _humanize(
-        self,
-        script: str
-    ) -> str:
-
+    def _humanize(self, script: str) -> str:
         import random
 
         fillers = [
@@ -297,7 +298,6 @@ START THE SOFIA LUXURY STORY NOW.
         ]
 
         lines = script.split("\n")
-
         humanized = []
 
         for i, line in enumerate(lines):
