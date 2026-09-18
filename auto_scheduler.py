@@ -414,7 +414,8 @@ class AutoScheduler:
                 script_text=script_text,
                 niche=self.niche,
                 add_music=True,
-                output_path=str(video_path)
+             output_path=str(video_path),
+scenes=script_data.get("scenes", [])
             )
 
             if not video_path.exists():
