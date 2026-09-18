@@ -32,6 +32,7 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}
           VIDEO_TOPIC: ${{ inputs.topic }}
         run: |
           python -c "import asyncio, os; from auto_scheduler import AutoScheduler; asyncio.run(AutoScheduler(language='english', niche='tech').create_content(os.environ.get('VIDEO_TOPIC') or None))"
