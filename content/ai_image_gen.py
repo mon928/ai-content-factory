@@ -1,18 +1,14 @@
 """
-🎨 SOFIA LUXURY STORY - AI IMAGE GENERATOR
+SOFIA LUXURY STORY
+AI IMAGE GENERATOR
 
-Uses Pollinations AI with Sofia's reference photo.
-
-Main purpose:
-- Keep Sofia visually consistent across story scenes
-- Support realistic, cinematic, action, luxury and adventure scenes
-- Use Sofia reference image for story visuals
-- Use Pollinations image-to-image/reference-image generation
-- Keep thumbnail/background generation independent from Sofia
+Generates cinematic Sofia visuals using Pollinations.
+Sofia remains the central visual character.
 """
 
 import os
 import time
+import base64
 from pathlib import Path
 from io import BytesIO
 from typing import List, Dict, Optional
@@ -22,588 +18,687 @@ from loguru import logger
 from PIL import Image
 
 
-class AIImageGenerator:
-    """Generate Sofia Luxury Story visuals using Pollinations AI."""
+# =========================================================
+# SOFIA SETTINGS
+# =========================================================
 
-    STYLES = {
-        "realistic": (
-            "photorealistic cinematic photography, natural skin texture, "
-            "realistic lighting, highly detailed, professional film still"
-        ),
-        "cinematic": (
-            "cinematic film still, dramatic lighting, realistic photography, "
-            "high detail, professional movie production"
-        ),
-        "luxury": (
-            "ultra realistic luxury editorial photography, elegant lighting, "
-            "premium fashion magazine quality, cinematic composition"
-        ),
-        "action": (
-            "cinematic action movie still, dynamic composition, dramatic lighting, "
-            "realistic motion, high detail, professional film production"
-        ),
-        "adventure": (
-            "cinematic adventure movie still, dramatic environment, realistic "
-            "lighting, epic composition, professional photography"
-        ),
-        "cartoon": (
-            "high quality animated cinematic style, vibrant colors, detailed "
-            "character design, polished animation"
-        ),
-        "anime": (
-            "high quality anime cinematic style, detailed character design, "
-            "dramatic lighting, professional animation"
-        ),
-        "3d": (
-            "high quality 3D cinematic render, realistic materials, dramatic "
-            "lighting, professional film quality"
-        ),
-        "sketch": (
-            "professional pencil sketch, detailed hand drawn artwork, artistic"
-        ),
-        "watercolor": (
-            "professional watercolor painting, detailed artistic composition"
-        ),
-        "minimal": (
-            "clean minimalist professional visual, elegant composition"
-        ),
-        "cyberpunk": (
-            "cinematic cyberpunk environment, neon lighting, futuristic city, "
-            "high detail, professional movie still"
-        ),
-    }
+SOFIA_REFERENCE = Path(
+    "assets/sofia/IMG-20260918-WA0009.jpg"
+)
 
-    SOFIA_REFERENCE = "assets/sofia/IMG-20260918-WA0009.jpg"
+POLLINATIONS_API_KEY = os.getenv(
+    "POLLINATIONS_API_KEY"
+)
 
-    SOFIA_IDENTITY = """
+POLLINATIONS_IMAGE_URL = (
+    "https://gen.pollinations.ai/v1/images/generations"
+)
+
+POLLINATIONS_EDIT_URL = (
+    "https://gen.pollinations.ai/v1/images/edits"
+)
+
+DEFAULT_MODEL = (
+    "black-forest-labs/flux.1-kontext-pro"
+)
+
+
+SOFIA_IDENTITY = """
 Sofia is the central character of Sofia Luxury Story.
+Keep Sofia visually consistent with the supplied reference image.
+Preserve her recognizable facial identity, hairstyle, skin tone,
+age appearance and overall elegant appearance.
 
-Use the supplied Sofia reference image as the identity reference.
+Sofia should look like the same woman throughout the story.
 
-Preserve Sofia's recognizable facial identity, facial proportions,
-skin appearance, hair characteristics and overall natural appearance.
-
-Sofia must remain the same woman from scene to scene.
-
-Clothing, hairstyle details, pose, expression, environment and action
-may change to match the story.
-
-Do not replace Sofia with another woman.
-Do not create a different face.
-Do not turn Sofia into a generic model.
-
-When the story is action, adventure, technology, luxury, travel,
-romance or another genre, Sofia remains the central character.
+She can appear in different locations, clothing, environments,
+luxury settings, technology scenes, travel scenes and action
+scenes, but her identity must remain consistent.
 """
+
+
+# =========================================================
+# AI IMAGE GENERATOR
+# =========================================================
+
+class AIImageGenerator:
 
     def __init__(
         self,
-        output_dir: str = "output/images",
-        reference_image_path: Optional[str] = None,
+        output_dir: str = "output/images"
     ):
+
         self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        self.api_key = os.getenv("POLLINATIONS_API_KEY", "").strip()
-
-        self.reference_image_path = Path(
-            reference_image_path or self.SOFIA_REFERENCE
+        self.output_dir.mkdir(
+            parents=True,
+            exist_ok=True
         )
-
-        self.api_url = "https://gen.pollinations.ai/v1/images/edits"
 
         self.model = os.getenv(
             "POLLINATIONS_IMAGE_MODEL",
-            "black-forest-labs/flux.1-kontext-pro",
+            DEFAULT_MODEL
         )
 
-        if not self.api_key:
-            logger.warning(
-                "⚠️ POLLINATIONS_API_KEY is not set."
+        self.api_key = (
+            os.getenv("POLLINATIONS_API_KEY")
+            or POLLINATIONS_API_KEY
+        )
+
+        logger.info(
+            "🎨 Sofia AI Image Generator initialized"
+        )
+
+        logger.info(
+            f"Model: {self.model}"
+        )
+
+        if SOFIA_REFERENCE.exists():
+
+            logger.info(
+                f"✅ Sofia reference found: "
+                f"{SOFIA_REFERENCE}"
             )
 
-        if not self.reference_image_path.exists():
+        else:
+
             logger.warning(
-                f"⚠️ Sofia reference image not found: "
-                f"{self.reference_image_path}"
+                f"⚠️ Sofia reference not found: "
+                f"{SOFIA_REFERENCE}"
             )
 
-    # ---------------------------------------------------------
-    # HELPERS
-    # ---------------------------------------------------------
 
-    def _get_reference_path(
+    # =====================================================
+    # HEADERS
+    # =====================================================
+
+    def _headers(self) -> dict:
+
+        headers = {
+            "Accept": "application/json, image/jpeg, image/png"
+        }
+
+        if self.api_key:
+
+            headers["Authorization"] = (
+                f"Bearer {self.api_key}"
+            )
+
+        return headers
+
+
+    # =====================================================
+    # SAVE IMAGE
+    # =====================================================
+
+    def _save_response_image(
         self,
-        reference_image_path: Optional[str] = None,
-    ) -> Optional[Path]:
-
-        path = Path(
-            reference_image_path
-            or self.reference_image_path
-        )
-
-        if path.exists():
-            return path
-
-        logger.warning(
-            f"⚠️ Reference image not found: {path}"
-        )
-
-        return None
-
-    def _build_prompt(
-        self,
-        prompt: str,
-        style: str,
-        use_reference: bool,
+        response,
+        output_path: Path
     ) -> str:
 
-        style_prompt = self.STYLES.get(
-            style,
-            self.STYLES["realistic"]
+        try:
+
+            content_type = (
+                response.headers.get(
+                    "content-type",
+                    ""
+                ).lower()
+            )
+
+            # ---------------------------------------------
+            # DIRECT IMAGE RESPONSE
+            # ---------------------------------------------
+
+            if (
+                content_type.startswith("image/")
+                or response.content[:8] == b"\x89PNG\r\n\x1a\n"
+                or response.content[:2] == b"\xff\xd8"
+            ):
+
+                image = Image.open(
+                    BytesIO(response.content)
+                )
+
+                image.convert("RGB").save(
+                    output_path,
+                    "JPEG",
+                    quality=95
+                )
+
+                return str(output_path)
+
+
+            # ---------------------------------------------
+            # JSON RESPONSE
+            # ---------------------------------------------
+
+            data = response.json()
+
+            image_url = None
+
+            if isinstance(data, dict):
+
+                if data.get("data"):
+
+                    first = data["data"][0]
+
+                    if isinstance(first, dict):
+
+                        image_url = first.get(
+                            "url"
+                        )
+
+                        if not image_url:
+
+                            b64 = first.get(
+                                "b64_json"
+                            )
+
+                            if b64:
+
+                                image_bytes = (
+                                    base64.b64decode(
+                                        b64
+                                    )
+                                )
+
+                                image = Image.open(
+                                    BytesIO(image_bytes)
+                                )
+
+                                image.convert(
+                                    "RGB"
+                                ).save(
+                                    output_path,
+                                    "JPEG",
+                                    quality=95
+                                )
+
+                                return str(
+                                    output_path
+                                )
+
+                image_url = (
+                    image_url
+                    or data.get("url")
+                    or data.get("image_url")
+                )
+
+
+            if image_url:
+
+                image_response = requests.get(
+                    image_url,
+                    timeout=60
+                )
+
+                image_response.raise_for_status()
+
+                image = Image.open(
+                    BytesIO(
+                        image_response.content
+                    )
+                )
+
+                image.convert(
+                    "RGB"
+                ).save(
+                    output_path,
+                    "JPEG",
+                    quality=95
+                )
+
+                return str(output_path)
+
+
+            logger.error(
+                "❌ Pollinations response contained "
+                "no usable image."
+            )
+
+            return ""
+
+
+        except Exception as e:
+
+            logger.error(
+                f"❌ Could not save generated image: {e}"
+            )
+
+            return ""
+
+
+    # =====================================================
+    # TEXT-TO-IMAGE
+    # =====================================================
+
+    def _generate_text_image(
+        self,
+        prompt: str,
+        output_path: Path,
+        width: int,
+        height: int
+    ) -> str:
+
+        if not self.api_key:
+
+            logger.warning(
+                "⚠️ POLLINATIONS_API_KEY is missing."
+            )
+
+        payload = {
+            "prompt": prompt,
+            "model": self.model,
+            "size": f"{width}x{height}",
+            "n": 1,
+            "response_format": "b64_json"
+        }
+
+        response = requests.post(
+            POLLINATIONS_IMAGE_URL,
+            headers={
+                **self._headers(),
+                "Content-Type": "application/json"
+            },
+            json=payload,
+            timeout=180
         )
 
-        if use_reference:
-            return f"""
-{self.SOFIA_IDENTITY}
+        if response.status_code != 200:
 
-SCENE:
-{prompt}
+            logger.error(
+                f"❌ Pollinations HTTP "
+                f"{response.status_code}: "
+                f"{response.text[:500]}"
+            )
 
-VISUAL STYLE:
-{style_prompt}
+            return ""
 
-IMPORTANT:
-Sofia must be clearly visible and remain the central subject.
+        return self._save_response_image(
+            response,
+            output_path
+        )
 
-Create a single polished cinematic image.
-Preserve Sofia's identity from the reference image.
-Change the environment, clothing, pose and action to fit the scene.
-Keep the result photorealistic unless another style is explicitly requested.
-No text, captions, logos, watermarks or duplicate people.
-"""
 
-        return f"""
-SCENE:
-{prompt}
+    # =====================================================
+    # REFERENCE IMAGE EDIT
+    # =====================================================
 
-VISUAL STYLE:
-{style_prompt}
+    def _generate_reference_image(
+        self,
+        prompt: str,
+        output_path: Path,
+        width: int,
+        height: int
+    ) -> str:
 
-Create a polished professional cinematic image.
-No text, captions, logos or watermarks.
-"""
+        if not SOFIA_REFERENCE.exists():
 
-    # ---------------------------------------------------------
+            logger.warning(
+                "⚠️ Sofia reference image does not exist."
+            )
+
+            return self._generate_text_image(
+                prompt,
+                output_path,
+                width,
+                height
+            )
+
+        try:
+
+            with open(
+                SOFIA_REFERENCE,
+                "rb"
+            ) as image_file:
+
+                files = {
+                    "image": (
+                        SOFIA_REFERENCE.name,
+                        image_file,
+                        "image/jpeg"
+                    )
+                }
+
+                data = {
+                    "prompt": prompt,
+                    "model": self.model,
+                    "size": f"{width}x{height}",
+                    "response_format": "b64_json"
+                }
+
+                response = requests.post(
+                    POLLINATIONS_EDIT_URL,
+                    headers={
+                        "Authorization":
+                            f"Bearer {self.api_key}"
+                    },
+                    files=files,
+                    data=data,
+                    timeout=240
+                )
+
+            if response.status_code != 200:
+
+                logger.warning(
+                    f"⚠️ Reference generation failed "
+                    f"with HTTP {response.status_code}."
+                )
+
+                logger.warning(
+                    response.text[:500]
+                )
+
+                logger.info(
+                    "↩️ Falling back to text-to-image."
+                )
+
+                return self._generate_text_image(
+                    prompt,
+                    output_path,
+                    width,
+                    height
+                )
+
+            return self._save_response_image(
+                response,
+                output_path
+            )
+
+        except Exception as e:
+
+            logger.warning(
+                f"⚠️ Reference image generation "
+                f"failed: {e}"
+            )
+
+            logger.info(
+                "↩️ Falling back to text-to-image."
+            )
+
+            return self._generate_text_image(
+                prompt,
+                output_path,
+                width,
+                height
+            )
+
+
+    # =====================================================
     # MAIN IMAGE GENERATOR
-    # ---------------------------------------------------------
+    # =====================================================
 
     def generate_image(
         self,
         prompt: str,
         style: str = "realistic",
-        width: int = 1280,
-        height: int = 720,
+        width: int = 1920,
+        height: int = 1080,
         filename: Optional[str] = None,
-        use_reference: bool = True,
-        reference_image_path: Optional[str] = None,
+        use_reference: bool = True
     ) -> str:
-        """
-        Generate one image.
 
-        When use_reference=True, Sofia's reference photo is supplied
-        to Pollinations so the generated image can maintain her identity.
-        """
+        if not filename:
 
-        if not self.api_key:
-            logger.error(
-                "❌ POLLINATIONS_API_KEY is missing."
-            )
-            return ""
-
-        reference_path = None
-
-        if use_reference:
-            reference_path = self._get_reference_path(
-                reference_image_path
+            filename = (
+                f"sofia_scene_"
+                f"{int(time.time())}.jpg"
             )
 
-            if reference_path is None:
-                logger.error(
-                    "❌ Sofia reference image is required "
-                    "but could not be found."
-                )
-                return ""
-
-        full_prompt = self._build_prompt(
-            prompt=prompt,
-            style=style,
-            use_reference=use_reference,
+        output_path = (
+            self.output_dir /
+            filename
         )
 
-        if filename is None:
-            safe_name = (
-                prompt[:50]
-                .replace(" ", "_")
-                .replace("/", "_")
-                .replace("\\", "_")
-            )
-            filename = f"{safe_name}.jpg"
+        style_text = {
 
-        output_path = self.output_dir / filename
-        output_path.parent.mkdir(
-            parents=True,
-            exist_ok=True
+            "realistic":
+                "photorealistic cinematic photography, "
+                "luxury editorial style, natural skin, "
+                "realistic lighting",
+
+            "cinematic":
+                "cinematic photography, dramatic lighting, "
+                "Hollywood-style composition, realistic",
+
+            "luxury":
+                "ultra-luxury editorial photography, "
+                "premium fashion magazine style",
+
+            "action":
+                "cinematic action movie photography, "
+                "dynamic composition, realistic motion",
+
+            "travel":
+                "luxury travel photography, cinematic "
+                "composition, beautiful natural lighting",
+
+            "technology":
+                "futuristic luxury technology photography, "
+                "premium cinematic lighting"
+
+        }.get(
+            style,
+            "photorealistic cinematic photography"
         )
+
+
+        final_prompt = f"""
+{SOFIA_IDENTITY}
+
+{prompt}
+
+Style:
+{style_text}
+
+IMPORTANT:
+Sofia must remain the main visual character.
+Keep her appearance consistent with the reference image.
+Do not replace Sofia with another woman.
+Do not change her identity.
+
+Create a polished cinematic frame suitable for
+Sofia Luxury Story.
+No text, no captions, no watermark.
+"""
+
 
         logger.info(
-            f"🎨 Generating image: {prompt[:80]}..."
+            f"🎨 Generating Sofia scene: "
+            f"{prompt[:100]}"
         )
 
-        if use_reference:
-            logger.info(
-                f"👩 Sofia reference: {reference_path}"
+
+        # Reference-image generation
+        if (
+            use_reference
+            and self.api_key
+            and SOFIA_REFERENCE.exists()
+        ):
+
+            result = self._generate_reference_image(
+                final_prompt,
+                output_path,
+                width,
+                height
             )
 
-        try:
-            headers = {
-                "Authorization": f"Bearer {self.api_key}"
-            }
-                        data = {
-                "prompt": full_prompt,
-                "model": self.model,
-                "size": f"{width}x{height}",
-                "response_format": "url",
-            }
+            if result:
 
-            files = None
-            reference_file = None
-
-            if reference_path:
-                reference_file = open(
-                    reference_path,
-                    "rb"
+                logger.info(
+                    f"✅ Sofia reference scene saved: "
+                    f"{result}"
                 )
 
-                files = {
-                    "image": (
-                        reference_path.name,
-                        reference_file,
-                        "image/jpeg",
-                    )
-                }
+                return result
 
-            try:
-                response = requests.post(
-                    self.api_url,
-                    headers=headers,
-                    data=data,
-                    files=files,
-                    timeout=300,
-                )
-            finally:
-                if reference_file:
-                    reference_file.close()
 
-            if response.status_code != 200:
-                logger.error(
-                    f"❌ Pollinations error "
-                    f"{response.status_code}: "
-                    f"{response.text[:500]}"
-                )
-                return ""
+        # Normal generation fallback
+        result = self._generate_text_image(
+            final_prompt,
+            output_path,
+            width,
+            height
+        )
 
-            content_type = response.headers.get(
-                "content-type",
-                ""
-            ).lower()
-
-            if "image" in content_type:
-                image_data = response.content
-
-            elif "json" in content_type:
-                try:
-                    result = response.json()
-                    image_url = None
-                    image_data = None
-
-                    if isinstance(result, dict):
-                        data_items = result.get("data", [])
-
-                        if data_items and isinstance(data_items, list):
-                            first_item = data_items[0]
-
-                            if isinstance(first_item, dict):
-                                image_url = first_item.get("url")
-
-                                if not image_url:
-                                    b64_json = first_item.get(
-                                        "b64_json"
-                                    )
-
-                                    if b64_json:
-                                        import base64
-
-                                        image_data = base64.b64decode(
-                                            b64_json
-                                        )
-
-                    if image_url:
-                        image_response = requests.get(
-                            image_url,
-                            timeout=180,
-                        )
-
-                        if image_response.status_code != 200:
-                            logger.error(
-                                "❌ Could not download generated image."
-                            )
-                            return ""
-
-                        image_data = image_response.content
-
-                    if not image_data:
-                        logger.error(
-                            "❌ Pollinations JSON did not contain "
-                            "data[0].url or data[0].b64_json."
-                        )
-                        logger.error(
-                            f"Response: {response.text[:1000]}"
-                        )
-                        return ""
-
-                except Exception as e:
-                    logger.error(
-                        f"❌ Could not process JSON response: {e}"
-                    )
-                    return ""
-
-            else:
-                image_data = response.content
-            image = Image.open(
-                BytesIO(image_data)
-            )
-
-            image = image.convert("RGB")
-
-            image.save(
-                str(output_path),
-                "JPEG",
-                quality=95,
-            )
-
-            size_kb = (
-                os.path.getsize(str(output_path))
-                / 1024
-            )
+        if result:
 
             logger.info(
-                f"✅ Saved: {output_path} "
-                f"({size_kb:.1f} KB)"
+                f"✅ Sofia scene saved: {result}"
             )
 
-            return str(output_path)
+        return result
 
-        except requests.Timeout:
-            logger.error(
-                "❌ Pollinations request timed out."
-            )
-            return ""
 
-        except Exception as e:
-            logger.error(
-                f"❌ Image generation error: {e}"
-            )
-            return ""
-
-    # ---------------------------------------------------------
-    # STORY SCENES
-    # ---------------------------------------------------------
+    # =====================================================
+    # MULTIPLE SCENES
+    # =====================================================
 
     def generate_scene_images(
         self,
         scenes: List[Dict],
         style: str = "cinematic",
         width: int = 1920,
-        height: int = 1080,
+        height: int = 1080
     ) -> List[str]:
-        """
-        Generate Sofia-centered images for story scenes.
-
-        Every story scene uses Sofia's reference image.
-        """
-
-        logger.info(
-            f"🎬 Generating {len(scenes)} Sofia story scenes..."
-        )
 
         image_paths = []
 
-        for i, scene in enumerate(scenes):
+        logger.info(
+            f"🎬 Generating "
+            f"{len(scenes)} Sofia scenes..."
+        )
 
-            scene_desc = scene.get(
+
+        for index, scene in enumerate(
+            scenes
+        ):
+
+            description = scene.get(
                 "description",
                 scene.get(
                     "text",
-                    f"Sofia in cinematic scene {i + 1}"
+                    f"Sofia scene {index + 1}"
                 )
             )
 
-            # Make sure Sofia remains central even when
-            # the original scene description does not mention her.
-            prompt = f"""
-Sofia is the main character in this scene.
-
-{scene_desc}
-
-Sofia must be the visual focus of the scene.
-The environment and action should support Sofia's story.
-"""
+            filename = (
+                f"scene_{index + 1:03d}.jpg"
+            )
 
             path = self.generate_image(
-                prompt=prompt,
+                prompt=description,
                 style=style,
                 width=width,
                 height=height,
-                filename=f"scene_{i + 1:02d}.jpg",
-                use_reference=True,
+                filename=filename,
+                use_reference=True
             )
 
             if path:
+
                 image_paths.append(path)
 
-            if i < len(scenes) - 1:
+            if index < len(scenes) - 1:
+
                 time.sleep(1)
+
 
         logger.info(
             f"✅ Generated "
-            f"{len(image_paths)}/{len(scenes)} Sofia scenes"
+            f"{len(image_paths)}/"
+            f"{len(scenes)} Sofia scenes"
         )
 
         return image_paths
 
-    # ---------------------------------------------------------
-    # CHARACTER IMAGE
-    # ---------------------------------------------------------
 
-    def generate_character(
-        self,
-        character_desc: str,
-        style: str = "realistic",
-        filename: str = "sofia_character.jpg",
-    ) -> str:
-        """Generate a Sofia character reference image."""
-
-        prompt = f"""
-Create a professional character portrait of Sofia.
-
-{character_desc}
-
-Show Sofia clearly and naturally.
-Preserve her identity from the reference photo.
-Professional cinematic character photography.
-"""
-
-        return self.generate_image(
-            prompt=prompt,
-            style=style,
-            width=1024,
-            height=1024,
-            filename=filename,
-            use_reference=True,
-        )
-
-    # ---------------------------------------------------------
-    # THUMBNAIL BACKGROUND
-    # ---------------------------------------------------------
+    # =====================================================
+    # THUMBNAIL
+    # =====================================================
 
     def generate_thumbnail_bg(
         self,
         topic: str,
-        niche: str = "luxury",
+        niche: str = "luxury"
     ) -> str:
-        """
-        Generate a thumbnail background.
 
-        Sofia reference is NOT used here because the thumbnail
-        background should be independent.
-        """
+        prompt = f"""
+Luxury cinematic background for a Sofia Luxury Story
+thumbnail about:
 
-        prompts = {
-            "luxury": (
-                f"luxury lifestyle background, {topic}, "
-                "premium fashion, elegant architecture, cinematic lighting"
-            ),
-            "tech": (
-                f"futuristic technology background, {topic}, "
-                "holograms, premium technology, cinematic lighting"
-            ),
-            "motivation": (
-                f"inspirational luxury background, {topic}, "
-                "golden light, success, cinematic composition"
-            ),
-            "gaming": (
-                f"epic gaming background, {topic}, "
-                "dramatic lighting, cinematic action"
-            ),
-            "education": (
-                f"professional educational background, {topic}, "
-                "modern clean environment"
-            ),
-            "cartoon": (
-                f"high quality animated background, {topic}, "
-                "colorful cinematic environment"
-            ),
-        }
+{topic}
 
-        prompt = prompts.get(
-            niche,
-            prompts["luxury"]
+Premium editorial composition.
+Elegant lighting.
+High contrast.
+Luxury technology and lifestyle atmosphere.
+No people.
+No text.
+No watermark.
+"""
+
+        filename = (
+            "thumbnail_"
+            + "".join(
+                c if c.isalnum() else "_"
+                for c in topic[:40]
+            )
+            + ".jpg"
         )
 
         return self.generate_image(
             prompt=prompt,
-            style="realistic",
-            width=1280,
-            height=720,
-            filename=(
-                f"bg_{topic[:30].replace(' ', '_')}.jpg"
-            ),
-            use_reference=False,
+            style="luxury",
+            width=1920,
+            height=1080,
+            filename=filename,
+            use_reference=False
         )
 
 
-# ============================================================
+# =========================================================
 # TEST
-# ============================================================
+# =========================================================
 
 if __name__ == "__main__":
 
-    print("\n" + "=" * 60)
-    print("🎬 SOFIA LUXURY STORY - IMAGE GENERATOR TEST")
-    print("=" * 60)
+    print(
+        "\n=========================================="
+    )
+
+    print(
+        "SOFIA LUXURY STORY IMAGE GENERATOR TEST"
+    )
+
+    print(
+        "==========================================\n"
+    )
 
     generator = AIImageGenerator()
 
-    print("\n👩 Testing Sofia reference image...")
-
-    test_path = generator.generate_image(
-        prompt="""
-Sofia standing beside a luxurious black sports car
-outside a modern luxury hotel at night.
-Elegant evening outfit.
-Cinematic city lights in the background.
-Professional movie still.
-        """,
+    result = generator.generate_image(
+        prompt=(
+            "Sofia standing in a luxurious modern "
+            "penthouse overlooking a futuristic city "
+            "at night"
+        ),
         style="cinematic",
-        width=1280,
-        height=720,
-        filename="sofia_reference_test.jpg",
-        use_reference=True,
+        width=1920,
+        height=1080,
+        filename="sofia_test.jpg",
+        use_reference=True
     )
 
-    print(f"\nResult: {test_path}")
+    if result:
 
-    print("\n" + "=" * 60)
-    print("✅ Sofia image generator test complete")
-    print("=" * 60)
+        print(
+            f"✅ Test image created: {result}"
+        )
+
+    else:
+
+        print(
+            "❌ Test image generation failed."
+        )
