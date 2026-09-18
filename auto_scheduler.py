@@ -57,17 +57,23 @@ from content.thumbnail_maker import ThumbnailMaker
 from seo.seo_engine import SEOEngine
 from platforms.facebook_publisher import FacebookPublisher
 
-
 # ---------------------------------------------------------
 # VIDEO CREATOR
 # ---------------------------------------------------------
 
-try:
-    sys.path.insert(0, str(BASE_DIR / "content"))
-    from video_creator_pro import ProfessionalVideoCreator
-except Exception:
-    from content.video_creator import VideoCreator as ProfessionalVideoCreator
+sys.path.insert(0, str(BASE_DIR / "content"))
 
+try:
+    from video_creator_pro import ProfessionalVideoCreator
+    logger.info("✅ ProfessionalVideoCreator loaded successfully.")
+
+except Exception as e:
+    logger.exception(
+        "❌ ProfessionalVideoCreator could not be imported."
+    )
+    raise RuntimeError(
+        f"ProfessionalVideoCreator import failed: {e}"
+    ) from e
 
 # ---------------------------------------------------------
 # CONSOLE
