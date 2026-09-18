@@ -1,23 +1,21 @@
 """
-🎬 SOFIA LUXURY STORY VIDEO CREATOR
+SOFIA LUXURY STORY VIDEO CREATOR
 
-Sofia is the central AI storyteller and creative identity.
+Optimized production renderer for Sofia Luxury Story.
 
-Creates approximately 5-minute Sofia Luxury Story videos
-for luxury, technology, lifestyle, action, drama, entertainment,
-and other story topics.
-
-Features:
-- Sofia identity
-- Controlled visual generation
+Goals:
+- Sofia remains the central identity
+- Approximately 5-minute stories
+- Lower memory usage for GitHub Actions
+- 1280x720 HD rendering
+- Controlled number of visual scenes
 - Pexels stock video support
-- AI image fallback
-- Ken Burns animation
-- Professional transitions
-- Background music
+- Sofia AI image fallback
+- Cinematic movement
+- Professional fades
 - Voice-over
-- Text overlays
-- 1080p output
+- Optional background music
+- Lightweight text overlays
 """
 
 import os
@@ -34,29 +32,33 @@ from moviepy import (
     CompositeAudioClip,
     concatenate_videoclips,
     TextClip,
-    ColorClip
+    ColorClip,
 )
 
 from moviepy.video.fx import FadeIn, FadeOut
 
-import numpy as np
 from dotenv import load_dotenv
 
 from content.ai_image_gen import AIImageGenerator
+
 
 load_dotenv()
 
 
 class ProfessionalVideoCreator:
     """
-    Creates Sofia Luxury Story videos.
+    Optimized Sofia Luxury Story video creator.
 
-    Sofia is the central storyteller and identity used
-    throughout the video creation process.
+    The renderer deliberately limits the number and resolution
+    of visual assets so GitHub Actions can render the video
+    without excessive memory usage.
     """
 
-    def __init__(self, resolution=(1920, 1080), fps=30):
-
+    def __init__(
+        self,
+        resolution=(1280, 720),
+        fps=24
+    ):
         self.resolution = resolution
         self.fps = fps
 
@@ -66,63 +68,86 @@ class ProfessionalVideoCreator:
 
         self.pexels_key = os.getenv("PEXELS_API_KEY")
 
-        # Sofia visual identity
+        # -----------------------------------------------------
+        # SOFIA IDENTITY
+        # -----------------------------------------------------
+
         self.sofia_identity = (
-            "Sofia Luxury Story, Sofia is the central AI storyteller, "
-            "elegant intelligent modern woman, cinematic luxury aesthetic, "
-            "premium editorial style, sophisticated visual storytelling, "
-            "high-end fashion and technology atmosphere, realistic "
-            "cinematic photography, dramatic professional lighting"
+            "Sofia Luxury Story. Sofia is the central AI storyteller "
+            "and visual identity. Sofia is an elegant intelligent "
+            "modern woman with a sophisticated cinematic presence. "
+            "Premium luxury editorial aesthetic, realistic cinematic "
+            "photography, high-end fashion, technology, dramatic "
+            "professional lighting, polished storytelling."
         )
+
+        # -----------------------------------------------------
+        # OUTPUT DIRECTORIES
+        # -----------------------------------------------------
+
+        self.output_dir = Path("output")
+        self.scene_dir = self.output_dir / "scene_images"
+
+        self.output_dir.mkdir(
+            parents=True,
+            exist_ok=True
+        )
+
+        self.scene_dir.mkdir(
+            parents=True,
+            exist_ok=True
+        )
+
+        # -----------------------------------------------------
+        # FALLBACK PALETTES
+        # -----------------------------------------------------
 
         self.color_palettes = {
             "luxury": [
                 (18, 14, 20),
                 (210, 170, 80),
-                (255, 255, 255)
+                (255, 255, 255),
             ],
             "tech": [
                 (15, 15, 40),
                 (0, 150, 255),
-                (255, 255, 255)
+                (255, 255, 255),
             ],
             "motivation": [
                 (20, 20, 20),
                 (255, 180, 0),
-                (255, 255, 255)
+                (255, 255, 255),
             ],
             "education": [
                 (10, 30, 60),
                 (80, 220, 100),
-                (255, 255, 255)
+                (255, 255, 255),
             ],
             "action": [
                 (15, 15, 15),
                 (220, 60, 40),
-                (255, 255, 255)
+                (255, 255, 255),
             ],
             "drama": [
                 (20, 15, 30),
                 (180, 80, 120),
-                (255, 255, 255)
+                (255, 255, 255),
             ],
-            "cartoon": [
-                (30, 20, 50),
-                (255, 100, 200),
-                (255, 255, 255)
-            ]
         }
 
     # =========================================================
-    # MUSIC
+    # BACKGROUND MUSIC
     # =========================================================
 
-    def _get_bg_music(self, mood="luxury") -> str:
+    def _get_bg_music(
+        self,
+        mood="luxury"
+    ) -> str:
 
         possible_moods = [
             mood,
             "luxury",
-            "tech"
+            "tech",
         ]
 
         for selected_mood in possible_moods:
@@ -137,7 +162,7 @@ class ProfessionalVideoCreator:
         return ""
 
     # =========================================================
-    # AI IMAGE
+    # AI IMAGE GENERATION
     # =========================================================
 
     def _generate_scene_image(
@@ -147,8 +172,7 @@ class ProfessionalVideoCreator:
         index: int
     ) -> str:
 
-        output_dir = Path("output/scene_images")
-        output_dir.mkdir(
+        self.scene_dir.mkdir(
             parents=True,
             exist_ok=True
         )
@@ -157,20 +181,39 @@ class ProfessionalVideoCreator:
             f"{self.sofia_identity}. "
             f"Scene {index + 1}. "
             f"{description}. "
-            "Cinematic composition, premium production quality, "
-            "realistic details, professional photography, "
-            "no text, no watermark, 16:9."
+            "Wide cinematic composition, 16:9, "
+            "realistic premium photography, "
+            "professional film lighting, "
+            "high detail, elegant composition, "
+            "no text, no watermark."
+        )
+
+        filename = (
+            f"sofia_scene_{index + 1:03d}.jpg"
         )
 
         try:
 
-            return self.ai_image_gen.generate_image(
+            logger.info(
+                f"🎨 Generating Sofia visual {index + 1}: "
+                f"{description[:80]}"
+            )
+
+            result = self.ai_image_gen.generate_image(
                 prompt=prompt,
                 style=style,
                 width=self.width,
                 height=self.height,
-                filename=f"sofia_scene_{index + 1:03d}.jpg"
+                filename=filename,
             )
+
+            if result and Path(result).exists():
+
+                logger.info(
+                    f"✅ Sofia visual saved: {result}"
+                )
+
+                return result
 
         except Exception as e:
 
@@ -178,7 +221,7 @@ class ProfessionalVideoCreator:
                 f"AI image generation failed: {e}"
             )
 
-            return ""
+        return ""
 
     # =========================================================
     # PEXELS SEARCH
@@ -187,7 +230,7 @@ class ProfessionalVideoCreator:
     def _search_stock_videos(
         self,
         query: str,
-        count: int = 5
+        count: int = 3
     ) -> list:
 
         if not self.pexels_key:
@@ -195,23 +238,17 @@ class ProfessionalVideoCreator:
 
         try:
 
-            url = "https://api.pexels.com/videos/search"
-
-            headers = {
-                "Authorization": self.pexels_key
-            }
-
-            params = {
-                "query": query,
-                "per_page": min(count, 15),
-                "orientation": "landscape"
-            }
-
             response = requests.get(
-                url,
-                headers=headers,
-                params=params,
-                timeout=20
+                "https://api.pexels.com/videos/search",
+                headers={
+                    "Authorization": self.pexels_key
+                },
+                params={
+                    "query": query,
+                    "per_page": min(count, 10),
+                    "orientation": "landscape",
+                },
+                timeout=20,
             )
 
             if response.status_code == 200:
@@ -222,13 +259,15 @@ class ProfessionalVideoCreator:
                 )
 
                 logger.info(
-                    f"📹 Pexels found {len(videos)} videos for '{query}'"
+                    f"📹 Pexels found {len(videos)} videos "
+                    f"for '{query}'"
                 )
 
                 return videos
 
             logger.warning(
-                f"Pexels returned status {response.status_code}"
+                f"Pexels returned status "
+                f"{response.status_code}"
             )
 
         except Exception as e:
@@ -250,6 +289,11 @@ class ProfessionalVideoCreator:
     ) -> bool:
 
         try:
+
+            Path(path).parent.mkdir(
+                parents=True,
+                exist_ok=True
+            )
 
             video_files = video_data.get(
                 "video_files",
@@ -277,43 +321,62 @@ class ProfessionalVideoCreator:
                     "link"
                 )
 
-                if link and width >= 1280:
+                if link:
+
+                    score = abs(
+                        (width / max(height, 1))
+                        - (16 / 9)
+                    )
 
                     suitable.append(
                         (
+                            score,
                             width * height,
                             video_file
                         )
                     )
 
-            if suitable:
-
-                suitable.sort(
-                    key=lambda item: item[0],
-                    reverse=True
-                )
-
-                best = suitable[0][1]
-
-            else:
-
-                best = video_files[0]
-
-            response = requests.get(
-                best["link"],
-                timeout=45
-            )
-
-            if response.status_code != 200:
+            if not suitable:
                 return False
 
-            with open(path, "wb") as file:
-
-                file.write(
-                    response.content
+            # Prefer a landscape file close to 16:9
+            suitable.sort(
+                key=lambda item: (
+                    item[0],
+                    -item[1]
                 )
+            )
 
-            return True
+            best = suitable[0][2]
+
+            logger.info(
+                "⬇️ Downloading Pexels stock video..."
+            )
+
+            # Stream the file instead of loading the
+            # entire video into RAM.
+            with requests.get(
+                best["link"],
+                timeout=60,
+                stream=True
+            ) as response:
+
+                if response.status_code != 200:
+                    return False
+
+                with open(
+                    path,
+                    "wb"
+                ) as file:
+
+                    for chunk in response.iter_content(
+                        chunk_size=1024 * 1024
+                    ):
+
+                        if chunk:
+                            file.write(chunk)
+
+            return Path(path).exists()
 
         except Exception as e:
 
@@ -324,158 +387,131 @@ class ProfessionalVideoCreator:
             return False
 
     # =========================================================
-    # ANIMATED IMAGE CLIP
+    # IMAGE CLIP
     # =========================================================
 
-    def _create_animated_clip(
+    def _create_image_clip(
         self,
         image_path: str,
         duration: float,
         text: str = ""
     ):
 
-        if not image_path or not Path(image_path).exists():
+        if (
+            not image_path
+            or not Path(image_path).exists()
+        ):
 
             colors = self.color_palettes.get(
                 "luxury",
-                [(18, 14, 20), (210, 170, 80), (255, 255, 255)]
+                [
+                    (18, 14, 20),
+                    (210, 170, 80),
+                    (255, 255, 255),
+                ]
             )
 
-            clip = ColorClip(
+            return ColorClip(
                 size=self.resolution,
                 color=colors[0],
                 duration=duration
             )
 
-            return clip
-
-        clip = ImageClip(
-            image_path,
-            duration=duration
-        )
-
-        # Gentle Ken Burns movement
-        zoom_factor = random.uniform(
-            1.04,
-            1.10
-        )
-
-        def ken_burns_effect(
-            get_frame,
-            t
-        ):
-
-            progress = (
-                t / duration
-                if duration > 0
-                else 0
-            )
-
-            current_zoom = (
-                1.0
-                + (zoom_factor - 1.0)
-                * progress
-            )
-
-            frame = get_frame(t)
-
-            height, width = frame.shape[:2]
-
-            new_height = int(
-                height * current_zoom
-            )
-
-            new_width = int(
-                width * current_zoom
-            )
-
-            from PIL import Image as PILImage
-
-            pil_img = PILImage.fromarray(
-                frame
-            )
-
-            pil_img = pil_img.resize(
-                (new_width, new_height),
-                PILImage.LANCZOS
-            )
-
-            left = (
-                new_width - width
-            ) // 2
-
-            top = (
-                new_height - height
-            ) // 2
-
-            pil_img = pil_img.crop(
-                (
-                    left,
-                    top,
-                    left + width,
-                    top + height
-                )
-            )
-
-            return np.array(
-                pil_img
-            )
-
         try:
 
-            clip = clip.transform(
-                ken_burns_effect
+            # -------------------------------------------------
+            # IMPORTANT:
+            # Do NOT use the old per-frame Ken Burns transform.
+            #
+            # A simple animated scale is much lighter on RAM
+            # and still gives the video a cinematic feeling.
+            # -------------------------------------------------
+
+            clip = ImageClip(
+                image_path,
+                duration=duration
             )
+
+            # Make sure image fills the HD frame.
+            if clip.w < self.width:
+
+                clip = clip.resized(
+                    width=self.width
+                )
+
+            if clip.h < self.height:
+
+                clip = clip.resized(
+                    height=self.height
+                )
+
+            # Crop to exact 16:9 frame.
+            if clip.w > self.width or clip.h > self.height:
+
+                clip = clip.cropped(
+                    x_center=clip.w / 2,
+                    y_center=clip.h / 2,
+                    width=self.width,
+                    height=self.height,
+                )
+
+            # -------------------------------------------------
+            # LIGHTWEIGHT TEXT OVERLAY
+            # -------------------------------------------------
+
+            if text:
+
+                try:
+
+                    text_clip = TextClip(
+                        text=text[:90],
+                        font_size=34,
+                        color="white",
+                        stroke_color="black",
+                        stroke_width=2,
+                        size=(
+                            self.width - 120,
+                            90
+                        ),
+                        method="caption",
+                    )
+
+                    text_clip = (
+                        text_clip
+                        .with_position(
+                            (
+                                "center",
+                                self.height - 120
+                            )
+                        )
+                        .with_duration(
+                            duration
+                        )
+                    )
+
+                    clip = CompositeVideoClip(
+                        [
+                            clip,
+                            text_clip
+                        ],
+                        size=self.resolution
+                    )
+
+                except Exception as e:
+
+                    logger.warning(
+                        f"Text overlay skipped: {e}"
+                    )
+
+            return clip
 
         except Exception as e:
 
             logger.warning(
-                f"Ken Burns effect failed: {e}"
+                f"Could not create image clip: {e}"
             )
 
-        # Text overlay
-        if text:
-
-            try:
-
-                text_clip = TextClip(
-                    text=text,
-                    font_size=52,
-                    color="white",
-                    stroke_color="black",
-                    stroke_width=3,
-                    size=(
-                        self.width - 180,
-                        None
-                    ),
-                    method="caption"
-                )
-
-                text_clip = (
-                    text_clip
-                    .with_position(
-                        (
-                            "center",
-                            self.height - 170
-                        )
-                    )
-                    .with_duration(duration)
-                )
-
-                clip = CompositeVideoClip(
-                    [
-                        clip,
-                        text_clip
-                    ]
-                )
-
-            except Exception as e:
-
-                logger.warning(
-                    f"Text overlay failed: {e}"
-                )
-
-        return clip
+            return None
 
     # =========================================================
     # STOCK VIDEO CLIP
@@ -487,11 +523,25 @@ class ProfessionalVideoCreator:
         duration: float
     ):
 
+        if (
+            not video_path
+            or not Path(video_path).exists()
+        ):
+            return None
+
         try:
 
             clip = VideoFileClip(
                 video_path
             )
+
+            if clip.duration <= 0:
+                clip.close()
+                return None
+
+            # -------------------------------------------------
+            # TRIM
+            # -------------------------------------------------
 
             if clip.duration > duration:
 
@@ -507,36 +557,16 @@ class ProfessionalVideoCreator:
 
                 clip = clip.subclipped(
                     start,
-                    start + duration
-                )
-
-            elif clip.duration < duration:
-
-                repeats = int(
-                    duration / clip.duration
-                ) + 1
-
-                clips = [
-                    clip
-                ]
-
-                for _ in range(
-                    repeats - 1
-                ):
-                    clips.append(
-                        VideoFileClip(
-                            video_path
-                        )
+                    min(
+                        start + duration,
+                        clip.duration
                     )
-
-                clip = concatenate_videoclips(
-                    clips
-                ).subclipped(
-                    0,
-                    duration
                 )
 
-            # Resize to 1920x1080
+            # -------------------------------------------------
+            # RESIZE TO 720P
+            # -------------------------------------------------
+
             clip = clip.resized(
                 width=self.width
             )
@@ -547,12 +577,21 @@ class ProfessionalVideoCreator:
                     height=self.height
                 )
 
-            clip = clip.cropped(
-                x_center=clip.w / 2,
-                y_center=clip.h / 2,
-                width=self.width,
-                height=self.height
-            )
+            # -------------------------------------------------
+            # CENTER CROP
+            # -------------------------------------------------
+
+            if (
+                clip.w > self.width
+                or clip.h > self.height
+            ):
+
+                clip = clip.cropped(
+                    x_center=clip.w / 2,
+                    y_center=clip.h / 2,
+                    width=self.width,
+                    height=self.height
+                )
 
             return clip
 
@@ -576,509 +615,664 @@ class ProfessionalVideoCreator:
         niche: str = "luxury",
         style: str = "professional",
         add_music: bool = True,
-        output_path: str = "output/sofia_luxury_story.mp4"
+        output_path: str = (
+            "output/sofia_luxury_story.mp4"
+        )
     ) -> str:
 
         logger.info(
-            f"🎬 Creating Sofia Luxury Story: {topic[:80]}"
+            f"🎬 Creating Sofia Luxury Story: "
+            f"{topic[:100]}"
         )
+
+        # -----------------------------------------------------
+        # CHECK VOICEOVER
+        # -----------------------------------------------------
 
         if not Path(
             voiceover_path
         ).exists():
 
             logger.error(
-                f"Voiceover not found: {voiceover_path}"
+                f"Voiceover not found: "
+                f"{voiceover_path}"
             )
 
             return ""
 
-        # -----------------------------------------------------
-        # LOAD AUDIO
-        # -----------------------------------------------------
+        audio = None
+        final_video = None
+        video_clips = []
 
-        audio = AudioFileClip(
-            voiceover_path
-        )
+        try:
 
-        total_duration = audio.duration
+            # -------------------------------------------------
+            # LOAD VOICE
+            # -------------------------------------------------
 
-        logger.info(
-            f"⏱️ Voice-over duration: {total_duration:.1f}s"
-        )
-
-        # -----------------------------------------------------
-        # TARGET ABOUT FIVE MINUTES
-        # -----------------------------------------------------
-
-        if total_duration > 330:
-
-            logger.warning(
-                "Voice-over is longer than expected for a Sofia Luxury Story."
+            audio = AudioFileClip(
+                voiceover_path
             )
 
-        # -----------------------------------------------------
-        # SPLIT SCRIPT
-        # -----------------------------------------------------
+            total_duration = audio.duration
 
-        sentences = (
-            script_text
-            .replace("\n", " ")
-            .split(".")
-        )
-
-        sentences = [
-            sentence.strip()
-            for sentence in sentences
-            if len(sentence.strip()) > 10
-        ]
-
-        # -----------------------------------------------------
-        # CONTROLLED NUMBER OF VISUALS
-        #
-        # About 15 scenes for a 5-minute story.
-        # This prevents dozens of AI image generations.
-        # -----------------------------------------------------
-
-        target_scenes = 15
-
-        if total_duration < 120:
-
-            target_scenes = max(
-                8,
-                int(total_duration / 10)
+            logger.info(
+                f"⏱️ Voice-over duration: "
+                f"{total_duration:.1f}s"
             )
 
-        elif total_duration < 240:
+            # -------------------------------------------------
+            # SAFETY CHECK
+            # -------------------------------------------------
 
-            target_scenes = 12
+            if total_duration < 30:
 
-        else:
+                logger.warning(
+                    "Voice-over is unusually short."
+                )
 
-            target_scenes = 15
+            if total_duration > 360:
 
-        num_scenes = min(
-            target_scenes,
-            15
-        )
+                logger.warning(
+                    "Voice-over is longer than "
+                    "the normal Sofia target."
+                )
 
-        scene_duration = (
-            total_duration / num_scenes
-        )
+            # -------------------------------------------------
+            # SPLIT SCRIPT INTO STORY BEATS
+            # -------------------------------------------------
 
-        logger.info(
-            f"🎬 Sofia story: {num_scenes} visual scenes "
-            f"at approximately {scene_duration:.1f}s each"
-        )
+            cleaned_script = (
+                script_text
+                .replace("\n", " ")
+                .replace("!", ".")
+                .replace("?", ".")
+            )
 
-        # -----------------------------------------------------
-        # PREPARE SCENE DESCRIPTIONS
-        # -----------------------------------------------------
+            raw_sentences = (
+                cleaned_script.split(".")
+            )
 
-        scene_descriptions = []
+            sentences = [
+                sentence.strip()
+                for sentence in raw_sentences
+                if len(sentence.strip()) > 15
+            ]
 
-        for i in range(
-            num_scenes
-        ):
+            # -------------------------------------------------
+            # CONTROLLED VISUAL COUNT
+            #
+            # Five-minute story:
+            # approximately 10 scenes.
+            #
+            # This is intentionally lower than the previous
+            # 15-scene version to reduce memory and API work.
+            # -------------------------------------------------
 
-            if sentences:
+            if total_duration < 120:
 
-                sentence = sentences[
-                    i % len(sentences)
-                ]
+                num_scenes = 6
+
+            elif total_duration < 240:
+
+                num_scenes = 8
 
             else:
 
-                sentence = (
-                    f"{topic} - Sofia Luxury Story scene {i + 1}"
-                )
+                num_scenes = 10
 
-            scene_descriptions.append(
-                sentence[:180]
+            num_scenes = max(
+                4,
+                min(num_scenes, 10)
             )
 
-        # -----------------------------------------------------
-        # VISUAL CLIPS
-        # -----------------------------------------------------
+            scene_duration = (
+                total_duration
+                / num_scenes
+            )
 
-        video_clips = []
-
-        # Search Pexels only when available
-        stock_results = []
-
-        if self.pexels_key:
-
-            search_terms = [
-                topic,
-                "luxury lifestyle",
-                "luxury fashion",
-                "modern technology",
-                "cinematic city",
-                "business luxury"
-            ]
-
-            for search_term in search_terms:
-
-                results = self._search_stock_videos(
-                    search_term,
-                    count=3
-                )
-
-                stock_results.extend(
-                    results
-                )
-
-                if len(stock_results) >= num_scenes:
-                    break
-
-        # -----------------------------------------------------
-        # CREATE SCENES
-        # -----------------------------------------------------
-
-        for i in range(
-            num_scenes
-        ):
-
-            scene_text = scene_descriptions[i]
-
-            clip = None
+            logger.info(
+                f"🎬 Sofia story: "
+                f"{num_scenes} cinematic scenes "
+                f"at approximately "
+                f"{scene_duration:.1f}s each"
+            )
 
             # -------------------------------------------------
-            # TRY PEXELS FIRST
+            # BUILD SCENE DESCRIPTIONS
             # -------------------------------------------------
 
-            if stock_results:
+            scene_descriptions = []
 
-                stock_index = (
-                    i % len(stock_results)
-                )
+            for i in range(num_scenes):
 
-                stock_data = (
-                    stock_results[stock_index]
-                )
+                if sentences:
 
-                stock_path = Path(
-                    "output/scene_images"
-                    f"/sofia_stock_{i + 1:03d}.mp4"
-                )
-
-                if self._download_stock_video(
-                    stock_data,
-                    str(stock_path)
-                ):
-
-                    clip = self._create_stock_clip(
-                        str(stock_path),
-                        scene_duration
+                    position = int(
+                        i * len(sentences)
+                        / num_scenes
                     )
 
-            # -------------------------------------------------
-            # AI IMAGE FALLBACK
-            # -------------------------------------------------
-
-            if clip is None:
-
-                logger.info(
-                    f"🎨 Generating Sofia AI scene {i + 1}/{num_scenes}"
-                )
-
-                img_path = (
-                    self._generate_scene_image(
-                        description=(
-                            f"Sofia Luxury Story scene. "
-                            f"{scene_text}"
-                        ),
-                        style="realistic",
-                        index=i
-                    )
-                )
-
-                if img_path:
-
-                    clip = (
-                        self._create_animated_clip(
-                            image_path=img_path,
-                            duration=scene_duration,
-                            text=(
-                                scene_text[:90]
-                                if i % 3 == 0
-                                else ""
-                            )
-                        )
+                    position = min(
+                        position,
+                        len(sentences) - 1
                     )
 
-            # -------------------------------------------------
-            # FINAL FALLBACK
-            # -------------------------------------------------
-
-            if clip is None:
-
-                colors = self.color_palettes.get(
-                    niche,
-                    self.color_palettes["luxury"]
-                )
-
-                clip = ColorClip(
-                    size=self.resolution,
-                    color=colors[0],
-                    duration=scene_duration
-                )
-
-            # -------------------------------------------------
-            # TRANSITIONS
-            # -------------------------------------------------
-
-            try:
-
-                if i == 0:
-
-                    clip = clip.with_effects(
-                        [
-                            FadeIn(0.5)
-                        ]
+                    scene_text = (
+                        sentences[position]
                     )
 
                 else:
 
-                    clip = clip.with_effects(
-                        [
-                            FadeIn(0.3),
-                            FadeOut(0.3)
+                    scene_text = (
+                        f"Sofia explores "
+                        f"{topic}"
+                    )
+
+                scene_descriptions.append(
+                    scene_text[:180]
+                )
+
+            # -------------------------------------------------
+            # PEXELS
+            # -------------------------------------------------
+
+            stock_results = []
+
+            if self.pexels_key:
+
+                search_terms = [
+                    topic,
+                    "luxury lifestyle",
+                    "luxury fashion",
+                    "modern technology",
+                    "cinematic city",
+                ]
+
+                for search_term in search_terms:
+
+                    results = (
+                        self._search_stock_videos(
+                            search_term,
+                            count=2
+                        )
+                    )
+
+                    stock_results.extend(
+                        results
+                    )
+
+                    if len(stock_results) >= 4:
+                        break
+
+            logger.info(
+                f"📹 Available Pexels clips: "
+                f"{len(stock_results)}"
+            )
+
+            # -------------------------------------------------
+            # CREATE VISUAL SCENES
+            # -------------------------------------------------
+
+            for i in range(num_scenes):
+
+                scene_text = (
+                    scene_descriptions[i]
+                )
+
+                clip = None
+
+                # -------------------------------------------------
+                # TRY STOCK VIDEO
+                # -------------------------------------------------
+
+                if stock_results:
+
+                    stock_data = (
+                        stock_results[
+                            i % len(stock_results)
                         ]
                     )
 
-            except Exception:
-                pass
+                    stock_path = (
+                        self.scene_dir
+                        / f"sofia_stock_{i + 1:03d}.mp4"
+                    )
 
-            video_clips.append(
-                clip
-            )
+                    if self._download_stock_video(
+                        stock_data,
+                        str(stock_path)
+                    ):
 
-        # -----------------------------------------------------
-        # COMBINE VIDEO
-        # -----------------------------------------------------
+                        clip = (
+                            self._create_stock_clip(
+                                str(stock_path),
+                                scene_duration
+                            )
+                        )
 
-        logger.info(
-            "🎞️ Combining Sofia story scenes..."
-        )
+                        if clip:
 
-        final_video = concatenate_videoclips(
-            video_clips,
-            method="compose"
-        )
+                            logger.info(
+                                f"✅ Using Pexels "
+                                f"scene {i + 1}"
+                            )
 
-        # Match exact voice-over length
-        if final_video.duration > total_duration:
+                # -------------------------------------------------
+                # AI FALLBACK
+                # -------------------------------------------------
 
-            final_video = (
-                final_video
-                .subclipped(
-                    0,
-                    total_duration
-                )
-            )
+                if clip is None:
 
-        # -----------------------------------------------------
-        # VOICE
-        # -----------------------------------------------------
+                    logger.info(
+                        f"🎨 Generating Sofia AI "
+                        f"scene {i + 1}/{num_scenes}"
+                    )
 
-        final_video = (
-            final_video
-            .with_audio(audio)
-        )
+                    image_path = (
+                        self._generate_scene_image(
+                            description=(
+                                "Sofia is the central "
+                                "character in this scene. "
+                                f"{scene_text}"
+                            ),
+                            style="realistic",
+                            index=i
+                        )
+                    )
 
-        # -----------------------------------------------------
-        # BACKGROUND MUSIC
-        # -----------------------------------------------------
+                    if image_path:
 
-        if add_music:
+                        clip = (
+                            self._create_image_clip(
+                                image_path=image_path,
+                                duration=scene_duration,
+                                text=(
+                                    scene_text
+                                    if i % 3 == 0
+                                    else ""
+                                )
+                            )
+                        )
 
-            music_path = self._get_bg_music(
-                "luxury"
-            )
+                # -------------------------------------------------
+                # FINAL FALLBACK
+                # -------------------------------------------------
 
-            if music_path and Path(
-                music_path
-            ).exists():
+                if clip is None:
+
+                    colors = (
+                        self.color_palettes.get(
+                            niche,
+                            self.color_palettes[
+                                "luxury"
+                            ]
+                        )
+                    )
+
+                    clip = ColorClip(
+                        size=self.resolution,
+                        color=colors[0],
+                        duration=scene_duration
+                    )
+
+                # -------------------------------------------------
+                # LIGHTWEIGHT TRANSITIONS
+                # -------------------------------------------------
 
                 try:
 
-                    music = AudioFileClip(
-                        music_path
-                    )
+                    if i == 0:
 
-                    if music.duration < total_duration:
-
-                        repeats = (
-                            int(
-                                total_duration
-                                / music.duration
-                            ) + 1
+                        clip = clip.with_effects(
+                            [
+                                FadeIn(0.4)
+                            ]
                         )
 
-                        music_clips = []
+                    else:
 
-                        for _ in range(
-                            repeats
-                        ):
-
-                            music_clips.append(
-                                AudioFileClip(
-                                    music_path
-                                )
-                            )
-
-                        music = concatenate_videoclips(
-                            music_clips
+                        clip = clip.with_effects(
+                            [
+                                FadeIn(0.25),
+                                FadeOut(0.25)
+                            ]
                         )
-
-                    music = music.subclipped(
-                        0,
-                        total_duration
-                    )
-
-                    music = music.with_volume(
-                        0.07
-                    )
-
-                    final_audio = CompositeAudioClip(
-                        [
-                            audio,
-                            music
-                        ]
-                    )
-
-                    final_video = (
-                        final_video
-                        .with_audio(
-                            final_audio
-                        )
-                    )
-
-                    logger.info(
-                        "🎵 Sofia background music added"
-                    )
 
                 except Exception as e:
 
                     logger.warning(
-                        f"Music failed: {e}"
+                        f"Transition skipped: {e}"
                     )
 
-        # -----------------------------------------------------
-        # SOFIA INTRO TITLE
-        # -----------------------------------------------------
-
-        try:
-
-            title = TextClip(
-                text=(
-                    "SOFIA LUXURY STORY"
-                ),
-                font_size=72,
-                color="white",
-                stroke_color="black",
-                stroke_width=4,
-                size=(
-                    self.width - 120,
-                    None
-                ),
-                method="caption"
-            )
-
-            title = (
-                title
-                .with_position("center")
-                .with_duration(3)
-                .with_effects(
-                    [
-                        FadeIn(0.4),
-                        FadeOut(0.6)
-                    ]
+                video_clips.append(
+                    clip
                 )
+
+            # -------------------------------------------------
+            # VERIFY SCENES
+            # -------------------------------------------------
+
+            if not video_clips:
+
+                logger.error(
+                    "No visual scenes were created."
+                )
+
+                return ""
+
+            logger.info(
+                "🎞️ Combining Sofia story scenes..."
             )
 
-            final_video = CompositeVideoClip(
-                [
-                    final_video,
-                    title
-                ]
+            # -------------------------------------------------
+            # COMBINE
+            # -------------------------------------------------
+
+            final_video = concatenate_videoclips(
+                video_clips,
+                method="compose"
             )
 
-        except Exception as e:
+            # -------------------------------------------------
+            # EXACT AUDIO LENGTH
+            # -------------------------------------------------
 
-            logger.warning(
-                f"Sofia title failed: {e}"
+            if final_video.duration > total_duration:
+
+                final_video = (
+                    final_video.subclipped(
+                        0,
+                        total_duration
+                    )
+                )
+
+            elif final_video.duration < total_duration:
+
+                logger.warning(
+                    "Video shorter than voice-over. "
+                    "Repeating final scene."
+                )
+
+                remaining = (
+                    total_duration
+                    - final_video.duration
+                )
+
+                last_clip = video_clips[-1]
+
+                extension = (
+                    last_clip
+                    .subclipped(
+                        0,
+                        min(
+                            remaining,
+                            last_clip.duration
+                        )
+                    )
+                )
+
+                final_video = concatenate_videoclips(
+                    [
+                        final_video,
+                        extension
+                    ],
+                    method="compose"
+                )
+
+            # -------------------------------------------------
+            # VOICEOVER
+            # -------------------------------------------------
+
+            final_video = (
+                final_video
+                .with_audio(audio)
             )
 
-        # -----------------------------------------------------
-        # WRITE VIDEO
-        # -----------------------------------------------------
+            # -------------------------------------------------
+            # BACKGROUND MUSIC
+            # -------------------------------------------------
 
-        Path(
-            output_path
-        ).parent.mkdir(
-            parents=True,
-            exist_ok=True
-        )
+            if add_music:
 
-        logger.info(
-            "🚀 Rendering final Sofia Luxury Story..."
-        )
+                music_path = (
+                    self._get_bg_music(
+                        "luxury"
+                    )
+                )
 
-        final_video.write_videofile(
-            output_path,
-            fps=self.fps,
-            codec="libx264",
-            audio_codec="aac",
-            bitrate="6000k",
-            preset="fast",
-            threads=4
-        )
+                if (
+                    music_path
+                    and Path(music_path).exists()
+                ):
 
-        # -----------------------------------------------------
-        # CLEANUP
-        # -----------------------------------------------------
+                    music = None
 
-        try:
-            audio.close()
-        except Exception:
-            pass
+                    try:
 
-        for clip in video_clips:
+                        music = AudioFileClip(
+                            music_path
+                        )
+
+                        if (
+                            music.duration
+                            < total_duration
+                        ):
+
+                            repeats = (
+                                int(
+                                    total_duration
+                                    / music.duration
+                                ) + 1
+                            )
+
+                            music_clips = []
+
+                            for _ in range(
+                                repeats
+                            ):
+
+                                music_clips.append(
+                                    AudioFileClip(
+                                        music_path
+                                    )
+                                )
+
+                            music = (
+                                concatenate_videoclips(
+                                    music_clips
+                                )
+                            )
+
+                        music = (
+                            music
+                            .subclipped(
+                                0,
+                                total_duration
+                            )
+                            .with_volume(
+                                0.06
+                            )
+                        )
+
+                        final_audio = (
+                            CompositeAudioClip(
+                                [
+                                    audio,
+                                    music
+                                ]
+                            )
+                        )
+
+                        final_video = (
+                            final_video
+                            .with_audio(
+                                final_audio
+                            )
+                        )
+
+                        logger.info(
+                            "🎵 Background music added."
+                        )
+
+                    except Exception as e:
+
+                        logger.warning(
+                            f"Music failed: {e}"
+                        )
+
+                        try:
+
+                            if music:
+                                music.close()
+
+                        except Exception:
+                            pass
+
+            # -------------------------------------------------
+            # TITLE
+            # -------------------------------------------------
 
             try:
-                clip.close()
-            except Exception:
-                pass
 
-        # -----------------------------------------------------
-        # RESULT
-        # -----------------------------------------------------
-
-        if Path(
-            output_path
-        ).exists():
-
-            size_mb = (
-                os.path.getsize(
-                    output_path
+                title = TextClip(
+                    text="SOFIA LUXURY STORY",
+                    font_size=54,
+                    color="white",
+                    stroke_color="black",
+                    stroke_width=3,
+                    size=(
+                        self.width - 100,
+                        80
+                    ),
+                    method="caption"
                 )
-                / (1024 * 1024)
+
+                title = (
+                    title
+                    .with_position("center")
+                    .with_duration(3)
+                    .with_effects(
+                        [
+                            FadeIn(0.35),
+                            FadeOut(0.5)
+                        ]
+                    )
+                )
+
+                final_video = (
+                    CompositeVideoClip(
+                        [
+                            final_video,
+                            title
+                        ],
+                        size=self.resolution
+                    )
+                )
+
+            except Exception as e:
+
+                logger.warning(
+                    f"Title skipped: {e}"
+                )
+
+            # -------------------------------------------------
+            # OUTPUT
+            # -------------------------------------------------
+
+            Path(
+                output_path
+            ).parent.mkdir(
+                parents=True,
+                exist_ok=True
             )
 
             logger.info(
-                f"✅ SOFIA LUXURY STORY CREATED: "
-                f"{output_path} ({size_mb:.1f} MB)"
+                "🚀 Rendering final "
+                "Sofia Luxury Story..."
             )
 
-            return output_path
+            # -------------------------------------------------
+            # MEMORY-FRIENDLY RENDER
+            # -------------------------------------------------
 
-        logger.error(
-            "❌ Final Sofia video was not created."
-        )
+            final_video.write_videofile(
+                output_path,
+                fps=self.fps,
+                codec="libx264",
+                audio_codec="aac",
+                bitrate="4500k",
+                preset="veryfast",
+                threads=2,
+                logger="bar",
+            )
 
-        return ""
+            # -------------------------------------------------
+            # CHECK RESULT
+            # -------------------------------------------------
+
+            if Path(
+                output_path
+            ).exists():
+
+                size_mb = (
+                    os.path.getsize(
+                        output_path
+                    )
+                    / (1024 * 1024)
+                )
+
+                logger.info(
+                    f"✅ SOFIA LUXURY STORY CREATED: "
+                    f"{output_path} "
+                    f"({size_mb:.1f} MB)"
+                )
+
+                return output_path
+
+            logger.error(
+                "❌ Final Sofia video was not created."
+            )
+
+            return ""
+
+        except Exception as e:
+
+            logger.exception(
+                f"❌ Sofia video rendering failed: {e}"
+            )
+
+            return ""
+
+        finally:
+
+            # -------------------------------------------------
+            # CLEANUP
+            # -------------------------------------------------
+
+            try:
+
+                if final_video:
+                    final_video.close()
+
+            except Exception:
+                pass
+
+            try:
+
+                if audio:
+                    audio.close()
+
+            except Exception:
+                pass
+
+            for clip in video_clips:
+
+                try:
+                    clip.close()
+
+                except Exception:
+                    pass
 
 
 # ============================================================
@@ -1087,30 +1281,41 @@ class ProfessionalVideoCreator:
 
 if __name__ == "__main__":
 
-    print("\n" + "=" * 60)
-    print("🎬 SOFIA LUXURY STORY VIDEO CREATOR TEST")
+    print()
+    print("=" * 60)
+    print("SOFIA LUXURY STORY VIDEO CREATOR TEST")
     print("=" * 60)
 
     creator = ProfessionalVideoCreator(
-        resolution=(1920, 1080)
+        resolution=(1280, 720),
+        fps=24
     )
 
     test_topic = (
-        "Sofia discovers the future of luxury technology"
+        "Sofia discovers the future "
+        "of luxury technology"
     )
 
     test_script = """
-    Sofia takes us inside the future of luxury technology.
-    The world of luxury is changing faster than ever.
-    New technology is transforming fashion and lifestyle.
-    Sofia explores the most fascinating innovations.
+    Sofia takes us inside the future
+    of luxury technology.
+    The world of luxury is changing
+    faster than ever.
+    New technology is transforming
+    fashion and lifestyle.
+    Sofia explores the most fascinating
+    innovations around the world.
     From intelligent cars to futuristic homes.
-    From smart fashion to incredible new experiences.
-    Sofia shows us why luxury is no longer just about price.
-    It is about experience, design, technology and imagination.
-    But there is an even bigger story behind this transformation.
-    The next generation of luxury will feel completely different.
-    Sofia explores what this means for the future.
+    From smart fashion to incredible
+    new experiences.
+    Sofia shows us why luxury is no longer
+    just about price.
+    It is about experience, design,
+    technology and imagination.
+    The next generation of luxury
+    will feel completely different.
+    Sofia explores what this means
+    for the future.
     And the journey is only beginning.
     """
 
@@ -1119,7 +1324,7 @@ if __name__ == "__main__":
     for vf in Path(
         "output"
     ).glob(
-        "voiceover_*.mp3"
+        "*.mp3"
     ):
 
         voice_file = str(vf)
@@ -1127,41 +1332,45 @@ if __name__ == "__main__":
 
     if voice_file:
 
-        result = creator.create_professional_video(
-            voiceover_path=voice_file,
-            topic=test_topic,
-            script_text=test_script,
-            niche="luxury",
-            add_music=True,
-            output_path=(
-                "output/"
-                "sofia_luxury_story_test.mp4"
+        result = (
+            creator.create_professional_video(
+                voiceover_path=voice_file,
+                topic=test_topic,
+                script_text=test_script,
+                niche="luxury",
+                add_music=True,
+                output_path=(
+                    "output/"
+                    "sofia_luxury_story_test.mp4"
+                )
             )
         )
 
         if result:
 
+            print()
             print(
-                "\n✅ Sofia Luxury Story:"
+                "✅ Sofia Luxury Story created:"
             )
-
             print(result)
 
         else:
 
+            print()
             print(
-                "\n❌ Sofia video creation failed."
+                "❌ Sofia video creation failed."
             )
 
     else:
 
+        print()
         print(
-            "\n⚠️ No voice-over found."
+            "No voice-over found in output folder."
         )
 
+    print()
+    print("=" * 60)
     print(
-        "\n" + "=" * 60
+        "Sofia Luxury Story test complete."
     )
-    print(
-        "✅ Sofia Luxury Story Test Complete!"
-    )
+    print("=" * 60)
