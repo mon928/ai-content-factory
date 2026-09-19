@@ -2,8 +2,17 @@
 SOFIA LUXURY STORY
 AI IMAGE GENERATOR
 
-Generates cinematic Sofia visuals using Pollinations.
-Includes graceful fallback when Pollinations has insufficient balance.
+Generates cinematic Sofia visuals using Pollinations when available.
+
+When Pollinations is unavailable or has insufficient balance,
+the exact Sofia reference image stored in:
+
+    assets/sofia/sofia_reference.jpg
+
+is used as a safe local fallback.
+
+The local fallback preserves Sofia's vertical 9:16 composition
+so her face and full body remain visible.
 """
 
 import os
@@ -19,12 +28,22 @@ from PIL import Image, ImageEnhance, ImageFilter
 
 
 # =========================================================
-# SOFIA SETTINGS
+# PATHS
 # =========================================================
 
-SOFIA_REFERENCE = Path(
-    "assets/sofia/IMG-20260918-WA0009.jpg"
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+SOFIA_REFERENCE = (
+    PROJECT_ROOT
+    / "assets"
+    / "sofia"
+    / "sofia_reference.jpg"
 )
+
+
+# =========================================================
+# POLLINATIONS SETTINGS
+# =========================================================
 
 POLLINATIONS_API_KEY = os.getenv(
     "POLLINATIONS_API_KEY"
@@ -38,30 +57,39 @@ POLLINATIONS_EDIT_URL = (
     "https://gen.pollinations.ai/v1/images/edits"
 )
 
-# Use a lower-cost model by default.
-# It can still be overridden with POLLINATIONS_IMAGE_MODEL.
 DEFAULT_MODEL = (
     "black-forest-labs/flux.1-schnell"
 )
+
+
+# =========================================================
+# SOFIA IDENTITY
+# =========================================================
 
 SOFIA_IDENTITY = """
 Sofia is the central character of Sofia Luxury Story.
 
 Keep Sofia visually consistent with the supplied reference image.
 
-Preserve her recognizable facial identity, hairstyle,
-skin tone, age appearance and elegant overall appearance.
+Preserve her recognizable facial identity, facial features,
+skin tone, hairstyle, age appearance and overall appearance.
 
-Sofia should look like the same woman throughout the story.
+Sofia must look like the same woman throughout the story.
 
-She can appear in different locations, clothing,
-luxury settings, technology scenes, travel scenes
-and action scenes, but her identity must remain consistent.
+Do not replace Sofia with another woman.
+
+Do not create a different face.
+
+Sofia can appear in different luxury locations,
+technology environments, travel locations, hotels,
+penthouse apartments, cars and cinematic settings.
+
+Her identity must remain consistent.
 """
 
 
 # =========================================================
-# AI IMAGE GENERATOR
+# IMAGE GENERATOR
 # =========================================================
 
 class AIImageGenerator:
@@ -95,21 +123,50 @@ class AIImageGenerator:
         )
 
         logger.info(
+            f"Project root: {PROJECT_ROOT}"
+        )
+
+        logger.info(
+            f"Sofia reference: {SOFIA_REFERENCE}"
+        )
+
+        logger.info(
             f"Model: {self.model}"
         )
 
         if SOFIA_REFERENCE.exists():
 
-            logger.info(
-                f"✅ Sofia reference found: "
-                f"{SOFIA_REFERENCE}"
-            )
+            try:
+
+                with Image.open(
+                    SOFIA_REFERENCE
+                ) as image:
+
+                    logger.info(
+                        "✅ Sofia reference found: "
+                        f"{SOFIA_REFERENCE}"
+                    )
+
+                    logger.info(
+                        f"Reference size: "
+                        f"{image.width}x{image.height}"
+                    )
+
+            except Exception as e:
+
+                logger.warning(
+                    f"⚠️ Sofia reference exists "
+                    f"but could not be opened: {e}"
+                )
 
         else:
 
-            logger.warning(
-                f"⚠️ Sofia reference not found: "
-                f"{SOFIA_REFERENCE}"
+            logger.error(
+                "❌ Sofia reference image NOT FOUND:"
+            )
+
+            logger.error(
+                str(SOFIA_REFERENCE)
             )
 
 
@@ -120,7 +177,11 @@ class AIImageGenerator:
     def _headers(self) -> dict:
 
         headers = {
-            "Accept": "application/json, image/jpeg, image/png"
+            "Accept": (
+                "application/json, "
+                "image/jpeg, "
+                "image/png"
+            )
         }
 
         if self.api_key:
@@ -133,31 +194,22 @@ class AIImageGenerator:
 
 
     # =====================================================
-    # LOCAL SOFIA FALLBACK
+    # LOAD SOFIA REFERENCE
     # =====================================================
 
-    def _create_local_fallback(
-        self,
-        output_path: Path,
-        scene_number: int = 0
-    ) -> str:
-
-        """
-        Creates a local fallback image from the Sofia
-        reference image when Pollinations cannot generate
-        an image because of insufficient balance or API errors.
-
-        This allows the video pipeline to continue instead
-        of terminating the entire GitHub Action.
-        """
+    def _load_sofia_reference(self) -> Optional[Image.Image]:
 
         if not SOFIA_REFERENCE.exists():
 
             logger.error(
-                "❌ No Sofia reference available for fallback."
+                "❌ Sofia reference image does not exist:"
             )
 
-            return ""
+            logger.error(
+                str(SOFIA_REFERENCE)
+            )
+
+            return None
 
         try:
 
@@ -165,27 +217,72 @@ class AIImageGenerator:
                 SOFIA_REFERENCE
             ).convert("RGB")
 
-            width = 1920
-            height = 1080
+            return image
 
-            # -------------------------------------------------
-            # Cover crop to 16:9
-            # -------------------------------------------------
+        except Exception as e:
 
-            source_ratio = image.width / image.height
-            target_ratio = width / height
+            logger.error(
+                f"❌ Could not open Sofia reference: {e}"
+            )
 
-            if source_ratio > target_ratio:
+            return None
 
-                new_width = int(
-                    image.height * target_ratio
-                )
+
+    # =====================================================
+    # RESIZE WITHOUT DESTROYING SOFIA
+    # =====================================================
+
+    def _fit_reference_to_size(
+        self,
+        image: Image.Image,
+        width: int,
+        height: int
+    ) -> Image.Image:
+
+        """
+        Resize the Sofia reference while preserving her
+        composition as much as possible.
+
+        For vertical 9:16 video output, the source photo
+        is already 9:16, so it is resized directly.
+
+        We avoid the old 16:9 cover crop that was cutting
+        away Sofia's face/body.
+        """
+
+        source_ratio = image.width / image.height
+        target_ratio = width / height
+
+        # -------------------------------------------------
+        # Nearly identical aspect ratio
+        # -------------------------------------------------
+
+        if abs(
+            source_ratio - target_ratio
+        ) < 0.08:
+
+            return image.resize(
+                (width, height),
+                Image.Resampling.LANCZOS
+            )
+
+        # -------------------------------------------------
+        # Target is wider than Sofia reference
+        # -------------------------------------------------
+
+        if target_ratio > source_ratio:
+
+            new_width = int(
+                image.height * target_ratio
+            )
+
+            if new_width <= image.width:
 
                 left = (
                     image.width - new_width
                 ) // 2
 
-                image = image.crop(
+                cropped = image.crop(
                     (
                         left,
                         0,
@@ -194,75 +291,197 @@ class AIImageGenerator:
                     )
                 )
 
-            else:
-
-                new_height = int(
-                    image.width / target_ratio
+                return cropped.resize(
+                    (width, height),
+                    Image.Resampling.LANCZOS
                 )
 
-                top = (
-                    image.height - new_height
-                ) // 2
+            # -------------------------------------------------
+            # If widening would crop too much, fit instead
+            # and use a premium blurred background.
+            # -------------------------------------------------
 
-                image = image.crop(
-                    (
-                        0,
-                        top,
-                        image.width,
-                        top + new_height
-                    )
-                )
+            fitted_height = height
 
-            image = image.resize(
+            fitted_width = int(
+                image.width
+                * fitted_height
+                / image.height
+            )
+
+            foreground = image.resize(
+                (
+                    fitted_width,
+                    fitted_height
+                ),
+                Image.Resampling.LANCZOS
+            )
+
+            background = image.resize(
                 (width, height),
                 Image.Resampling.LANCZOS
             )
 
+            background = background.filter(
+                ImageFilter.GaussianBlur(18)
+            )
+
+            canvas = background.copy()
+
+            x = (
+                width - fitted_width
+            ) // 2
+
+            canvas.paste(
+                foreground,
+                (x, 0)
+            )
+
+            return canvas
+
+        # -------------------------------------------------
+        # Target is taller/narrower
+        # -------------------------------------------------
+
+        new_height = int(
+            image.width / target_ratio
+        )
+
+        if new_height <= image.height:
+
+            top = (
+                image.height - new_height
+            ) // 2
+
+            cropped = image.crop(
+                (
+                    0,
+                    top,
+                    image.width,
+                    top + new_height
+                )
+            )
+
+            return cropped.resize(
+                (width, height),
+                Image.Resampling.LANCZOS
+            )
+
+        return image.resize(
+            (width, height),
+            Image.Resampling.LANCZOS
+        )
+
+
+    # =====================================================
+    # LOCAL SOFIA FALLBACK
+    # =====================================================
+
+    def _create_local_fallback(
+        self,
+        output_path: Path,
+        scene_number: int = 0,
+        width: int = 720,
+        height: int = 1280
+    ) -> str:
+
+        """
+        Uses the real Sofia reference image locally.
+
+        IMPORTANT:
+        The old version converted Sofia's vertical photo
+        to 1920x1080 and cropped her.
+
+        This version keeps the vertical composition for
+        normal Sofia scenes.
+        """
+
+        image = self._load_sofia_reference()
+
+        if image is None:
+
+            return ""
+
+        try:
+
+            image = self._fit_reference_to_size(
+                image,
+                width,
+                height
+            )
+
             # -------------------------------------------------
-            # Create small visual variations between scenes
+            # Subtle cinematic variations.
+            #
+            # These are deliberately gentle so Sofia's
+            # identity and appearance remain unchanged.
             # -------------------------------------------------
 
-            variation = scene_number % 6
+            variation = scene_number % 8
 
             if variation == 1:
 
                 image = ImageEnhance.Brightness(
                     image
-                ).enhance(1.08)
+                ).enhance(1.04)
 
             elif variation == 2:
 
                 image = ImageEnhance.Contrast(
                     image
-                ).enhance(1.10)
+                ).enhance(1.06)
 
             elif variation == 3:
 
                 image = ImageEnhance.Color(
                     image
-                ).enhance(1.08)
+                ).enhance(1.05)
 
             elif variation == 4:
 
-                image = image.filter(
-                    ImageFilter.SMOOTH
-                )
+                image = ImageEnhance.Sharpness(
+                    image
+                ).enhance(1.10)
 
             elif variation == 5:
 
+                image = ImageEnhance.Brightness(
+                    image
+                ).enhance(0.97)
+
+                image = ImageEnhance.Contrast(
+                    image
+                ).enhance(1.04)
+
+            elif variation == 6:
+
+                image = ImageEnhance.Color(
+                    image
+                ).enhance(1.03)
+
                 image = ImageEnhance.Sharpness(
                     image
-                ).enhance(1.20)
+                ).enhance(1.08)
+
+            elif variation == 7:
+
+                image = image.filter(
+                    ImageFilter.SMOOTH_MORE
+                )
 
             image.save(
                 output_path,
                 "JPEG",
-                quality=95
+                quality=95,
+                optimize=True
             )
 
             logger.warning(
-                f"⚠️ Local Sofia fallback created: "
-                f"{output_path}"
+                "⚠️ Using local Sofia reference fallback:"
+            )
+
+            logger.warning(
+                f"   {output_path}"
             )
 
             return str(output_path)
@@ -270,7 +489,7 @@ class AIImageGenerator:
         except Exception as e:
 
             logger.error(
-                f"❌ Local fallback failed: {e}"
+                f"❌ Local Sofia fallback failed: {e}"
             )
 
             return ""
@@ -295,9 +514,9 @@ class AIImageGenerator:
                 ).lower()
             )
 
-            # ---------------------------------------------
+            # -------------------------------------------------
             # DIRECT IMAGE RESPONSE
-            # ---------------------------------------------
+            # -------------------------------------------------
 
             if (
                 content_type.startswith("image/")
@@ -322,9 +541,9 @@ class AIImageGenerator:
                 return str(output_path)
 
 
-            # ---------------------------------------------
+            # -------------------------------------------------
             # JSON RESPONSE
-            # ---------------------------------------------
+            # -------------------------------------------------
 
             data = response.json()
 
@@ -380,7 +599,6 @@ class AIImageGenerator:
                     or data.get("image_url")
                 )
 
-
             if image_url:
 
                 image_response = requests.get(
@@ -414,7 +632,6 @@ class AIImageGenerator:
 
             return ""
 
-
         except Exception as e:
 
             logger.error(
@@ -445,7 +662,9 @@ class AIImageGenerator:
 
             return self._create_local_fallback(
                 output_path,
-                scene_number
+                scene_number,
+                width,
+                height
             )
 
 
@@ -457,7 +676,9 @@ class AIImageGenerator:
 
             return self._create_local_fallback(
                 output_path,
-                scene_number
+                scene_number,
+                width,
+                height
             )
 
 
@@ -468,7 +689,6 @@ class AIImageGenerator:
             "n": 1,
             "response_format": "b64_json"
         }
-
 
         try:
 
@@ -483,7 +703,6 @@ class AIImageGenerator:
                 timeout=180
             )
 
-
             if response.status_code != 200:
 
                 logger.error(
@@ -491,7 +710,6 @@ class AIImageGenerator:
                     f"{response.status_code}: "
                     f"{response.text[:500]}"
                 )
-
 
                 # -----------------------------------------
                 # INSUFFICIENT BALANCE
@@ -505,30 +723,31 @@ class AIImageGenerator:
                     )
 
                     logger.warning(
-                        "↩️ Switching to local Sofia "
-                        "fallback so video creation "
-                        "can continue."
+                        "↩️ Switching permanently to "
+                        "the new local Sofia reference "
+                        "for this workflow run."
                     )
 
                     self.pollinations_disabled = True
 
                     return self._create_local_fallback(
                         output_path,
-                        scene_number
+                        scene_number,
+                        width,
+                        height
                     )
-
 
                 return self._create_local_fallback(
                     output_path,
-                    scene_number
+                    scene_number,
+                    width,
+                    height
                 )
-
 
             return self._save_response_image(
                 response,
                 output_path
             )
-
 
         except Exception as e:
 
@@ -538,7 +757,9 @@ class AIImageGenerator:
 
             return self._create_local_fallback(
                 output_path,
-                scene_number
+                scene_number,
+                width,
+                height
             )
 
 
@@ -559,7 +780,9 @@ class AIImageGenerator:
 
             return self._create_local_fallback(
                 output_path,
-                scene_number
+                scene_number,
+                width,
+                height
             )
 
 
@@ -622,7 +845,6 @@ class AIImageGenerator:
                     timeout=240
                 )
 
-
             if response.status_code != 200:
 
                 logger.warning(
@@ -634,7 +856,6 @@ class AIImageGenerator:
                 logger.warning(
                     response.text[:500]
                 )
-
 
                 # -----------------------------------------
                 # INSUFFICIENT BALANCE
@@ -648,17 +869,18 @@ class AIImageGenerator:
                     )
 
                     logger.warning(
-                        "↩️ Switching to local Sofia "
-                        "fallback."
+                        "↩️ Using the new Sofia "
+                        "reference image locally."
                     )
 
                     self.pollinations_disabled = True
 
                     return self._create_local_fallback(
                         output_path,
-                        scene_number
+                        scene_number,
+                        width,
+                        height
                     )
-
 
                 logger.info(
                     "↩️ Falling back to text-to-image."
@@ -672,18 +894,15 @@ class AIImageGenerator:
                     scene_number
                 )
 
-
             return self._save_response_image(
                 response,
                 output_path
             )
 
-
         except Exception as e:
 
             logger.warning(
-                f"⚠️ Reference generation "
-                f"failed: {e}"
+                f"⚠️ Reference generation failed: {e}"
             )
 
             return self._generate_text_image(
@@ -717,12 +936,10 @@ class AIImageGenerator:
                 f"{int(time.time())}.jpg"
             )
 
-
         output_path = (
             self.output_dir /
             filename
         )
-
 
         style_text = {
 
@@ -733,15 +950,17 @@ class AIImageGenerator:
 
             "cinematic":
                 "cinematic photography, dramatic lighting, "
-                "Hollywood-style composition, realistic",
+                "premium Hollywood-style composition, "
+                "realistic skin and natural detail",
 
             "luxury":
                 "ultra-luxury editorial photography, "
-                "premium fashion magazine style",
+                "premium fashion magazine style, "
+                "expensive cinematic atmosphere",
 
             "action":
                 "cinematic action movie photography, "
-                "dynamic composition, realistic motion",
+                "dynamic composition, realistic movement",
 
             "travel":
                 "luxury travel photography, cinematic "
@@ -756,24 +975,29 @@ class AIImageGenerator:
             "photorealistic cinematic photography"
         )
 
-
         final_prompt = f"""
 {SOFIA_IDENTITY}
 
 {prompt}
 
 Style:
+
 {style_text}
 
 IMPORTANT:
 
 Sofia must remain the main visual character.
 
-Keep her appearance consistent with the reference image.
+Keep Sofia's face and identity consistent with
+the supplied reference image.
 
 Do not replace Sofia with another woman.
 
-Do not change her identity.
+Do not create a different person.
+
+Sofia should be clearly visible in the frame.
+
+Preserve realistic facial proportions.
 
 Create a polished cinematic frame suitable for
 Sofia Luxury Story.
@@ -783,12 +1007,13 @@ No captions.
 No watermark.
 """
 
-
         logger.info(
-            f"🎨 Generating Sofia scene: "
-            f"{prompt[:100]}"
+            "🎨 Generating Sofia scene:"
         )
 
+        logger.info(
+            prompt[:150]
+        )
 
         # -------------------------------------------------
         # Reference-image generation
@@ -818,9 +1043,8 @@ No watermark.
 
                 return result
 
-
         # -------------------------------------------------
-        # Normal generation fallback
+        # Normal generation / local fallback
         # -------------------------------------------------
 
         result = self._generate_text_image(
@@ -831,14 +1055,12 @@ No watermark.
             scene_number
         )
 
-
         if result:
 
             logger.info(
                 f"✅ Sofia scene saved: "
                 f"{result}"
             )
-
 
         return result
 
@@ -857,12 +1079,10 @@ No watermark.
 
         image_paths = []
 
-
         logger.info(
             f"🎬 Generating "
             f"{len(scenes)} Sofia scenes..."
         )
-
 
         for index, scene in enumerate(scenes):
 
@@ -870,15 +1090,16 @@ No watermark.
                 "description",
                 scene.get(
                     "text",
-                    f"Sofia scene {index + 1}"
+                    scene.get(
+                        "action",
+                        f"Sofia scene {index + 1}"
+                    )
                 )
             )
-
 
             filename = (
                 f"scene_{index + 1:03d}.jpg"
             )
-
 
             path = self.generate_image(
                 prompt=description,
@@ -889,7 +1110,6 @@ No watermark.
                 use_reference=True,
                 scene_number=index + 1
             )
-
 
             if path:
 
@@ -902,18 +1122,15 @@ No watermark.
                     f"could not be generated."
                 )
 
-
             if index < len(scenes) - 1:
 
-                time.sleep(1)
-
+                time.sleep(0.5)
 
         logger.info(
             f"✅ Generated "
             f"{len(image_paths)}/"
             f"{len(scenes)} Sofia scenes"
         )
-
 
         return image_paths
 
@@ -936,14 +1153,12 @@ thumbnail about:
 
 Premium editorial composition.
 Elegant lighting.
-High contrast.
 Luxury technology and lifestyle atmosphere.
 
 No people.
 No text.
 No watermark.
 """
-
 
         filename = (
             "thumbnail_"
@@ -954,7 +1169,6 @@ No watermark.
             )
             + ".jpg"
         )
-
 
         return self.generate_image(
             prompt=prompt,
@@ -985,24 +1199,23 @@ if __name__ == "__main__":
         "==========================================\n"
     )
 
-
     generator = AIImageGenerator()
-
 
     result = generator.generate_image(
         prompt=(
-            "Sofia standing in a luxurious modern "
-            "penthouse overlooking a futuristic city "
-            "at night"
+            "Sofia standing confidently in a "
+            "luxurious modern penthouse overlooking "
+            "a futuristic city at night. "
+            "Her face is clearly visible. "
+            "Full-body cinematic composition."
         ),
         style="cinematic",
-        width=1920,
-        height=1080,
+        width=720,
+        height=1280,
         filename="sofia_test.jpg",
         use_reference=True,
         scene_number=1
     )
-
 
     if result:
 
