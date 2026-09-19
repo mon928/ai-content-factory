@@ -1,28 +1,23 @@
 """
 SOFIA LUXURY STORY
-FAST / RELIABLE CINEMATIC VERTICAL VIDEO CREATOR
+CINEMATIC VERTICAL MOVIE CREATOR
 
-Purpose:
-Create approximately 5-minute Sofia luxury story videos
-for GitHub Actions without unnecessary processing.
-
-Output:
-720 x 1280
-9:16 vertical
-24 FPS
-
-Production strategy:
-- 8 cinematic scenes
-- Sofia AI images
+Creates a connected luxury-story video with:
+- 12 cinematic story beats
+- Sofia as the central character
+- Different visuals for different story beats
+- Pexels supporting visuals when available
+- Sofia AI visuals when available
 - Voice-over
-- Optional background music
-- Lightweight subtitles
-- Fast FFmpeg rendering
-- No Pexels video downloading during production
-- No expensive animated image movement
+- Subtitles
+- Background music
+- 720x1280 vertical output
+- 24 FPS
 """
 
 import os
+import re
+import requests
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
@@ -37,6 +32,7 @@ from moviepy import (
     concatenate_videoclips,
     concatenate_audioclips,
     TextClip,
+    ColorClip,
 )
 
 from moviepy.video.fx import FadeIn, FadeOut
@@ -48,23 +44,15 @@ load_dotenv()
 
 class ProfessionalVideoCreator:
     """
-    Fast and reliable Sofia Luxury Story video creator.
+    Cinematic Sofia luxury-story creator.
     """
-
-    # ---------------------------------------------------------
-    # PRODUCTION SETTINGS
-    # ---------------------------------------------------------
 
     DEFAULT_RESOLUTION = (720, 1280)
     DEFAULT_FPS = 24
 
-    # Exactly 8 scenes for approximately 5 minutes.
-    MAX_SCENES = 8
-    MIN_SCENES = 8
-
-    # ---------------------------------------------------------
-    # INITIALIZATION
-    # ---------------------------------------------------------
+    # More story beats = more visual changes.
+    MIN_SCENES = 12
+    MAX_SCENES = 12
 
     def __init__(
         self,
@@ -76,58 +64,47 @@ class ProfessionalVideoCreator:
 
         self.width, self.height = resolution
 
-        # Always force portrait.
         if self.width >= self.height:
-            logger.warning(
-                "Landscape resolution detected. "
-                "Switching to 720x1280 portrait."
-            )
-
             self.resolution = self.DEFAULT_RESOLUTION
             self.width, self.height = self.resolution
 
         self.ai_image_gen = AIImageGenerator()
 
+        self.pexels_key = os.getenv(
+            "PEXELS_API_KEY",
+            ""
+        )
+
         self.sofia_identity = (
-            "Sofia Luxury Story. "
-            "Sofia is the central female protagonist. "
-            "Keep Sofia visually recognizable throughout the movie. "
+            "Sofia is the central female protagonist "
+            "of a premium cinematic luxury movie. "
             "Elegant intelligent modern woman, "
-            "consistent facial identity, "
-            "cinematic realistic appearance, "
-            "premium luxury aesthetic, "
-            "high-end fashion, "
-            "expressive eyes, "
-            "natural skin texture, "
-            "professional cinematic lighting, "
-            "photorealistic movie still."
+            "consistent recognizable facial identity, "
+            "natural realistic skin, expressive eyes, "
+            "luxury fashion, sophisticated appearance, "
+            "photorealistic, cinematic lighting, "
+            "high-end movie production."
         )
 
         logger.info(
-            f"SOFIA FAST RENDERER READY: "
+            f"SOFIA CINEMATIC MOVIE CREATOR READY: "
             f"{self.width}x{self.height} "
             f"{self.fps}fps"
         )
 
     # =========================================================
-    # BACKGROUND MUSIC
+    # MUSIC
     # =========================================================
 
-    def _get_bg_music(
-        self,
-        mood: str = "luxury"
-    ) -> str:
+    def _get_bg_music(self, mood="luxury") -> str:
 
-        possible = [
+        for selected in (
             mood,
             "luxury",
             "tech",
             "action",
-            "drama",
-        ]
-
-        for selected in possible:
-
+            "drama"
+        ):
             path = Path(
                 f"data/assets/bg_music_{selected}.mp3"
             )
@@ -138,20 +115,7 @@ class ProfessionalVideoCreator:
         return ""
 
     # =========================================================
-    # SCENE COUNT
-    # =========================================================
-
-    def _calculate_scene_count(
-        self,
-        duration: float
-    ) -> int:
-
-        # Reliability is more important than many scenes.
-        # Eight scenes are enough for a five-minute story.
-        return 8
-
-    # =========================================================
-    # PREPARE STORY SCENES
+    # STORY SCENES
     # =========================================================
 
     def _prepare_story_scenes(
@@ -164,188 +128,328 @@ class ProfessionalVideoCreator:
 
         prepared = []
 
-        # -----------------------------------------------------
-        # USE AI STRUCTURED SCENES WHEN AVAILABLE
-        # -----------------------------------------------------
-
         if scenes:
 
-            for index, scene in enumerate(
-                scenes[:self.MAX_SCENES]
-            ):
+            for index, scene in enumerate(scenes):
 
                 if not isinstance(scene, dict):
                     continue
-
-                location = str(
-                    scene.get(
-                        "location",
-                        "luxury cinematic location"
-                    )
-                )
-
-                action = str(
-                    scene.get(
-                        "action",
-                        ""
-                    )
-                )
-
-                emotion = str(
-                    scene.get(
-                        "emotion",
-                        "determined"
-                    )
-                )
-
-                visual_prompt = str(
-                    scene.get(
-                        "visual_prompt",
-                        ""
-                    )
-                )
 
                 narration = str(
                     scene.get(
                         "narration",
                         ""
                     )
-                )
+                ).strip()
 
                 dialogue = str(
                     scene.get(
                         "dialogue",
                         ""
                     )
-                )
-
-                description = " ".join(
-                    [
-                        location,
-                        action,
-                        emotion,
-                        visual_prompt,
-                    ]
                 ).strip()
 
-                prepared.append(
-                    {
-                        "scene_number": index + 1,
-                        "location": location,
-                        "action": action,
-                        "emotion": emotion,
-                        "visual_prompt": description,
-                        "narration": narration,
-                        "dialogue": dialogue,
-                    }
-                )
+                location = str(
+                    scene.get(
+                        "location",
+                        "luxury location"
+                    )
+                ).strip()
+
+                action = str(
+                    scene.get(
+                        "action",
+                        ""
+                    )
+                ).strip()
+
+                emotion = str(
+                    scene.get(
+                        "emotion",
+                        "determined"
+                    )
+                ).strip()
+
+                visual_prompt = str(
+                    scene.get(
+                        "visual_prompt",
+                        ""
+                    )
+                ).strip()
+
+                if not (
+                    narration
+                    or dialogue
+                    or action
+                    or visual_prompt
+                ):
+                    continue
+
+                prepared.append({
+                    "scene_number": index + 1,
+                    "location": location,
+                    "action": action,
+                    "emotion": emotion,
+                    "visual_prompt": visual_prompt,
+                    "narration": narration,
+                    "dialogue": dialogue,
+                })
 
         # -----------------------------------------------------
-        # FALLBACK FROM SCRIPT
+        # FALLBACK IF STRUCTURED SCENES ARE NOT AVAILABLE
         # -----------------------------------------------------
 
         if not prepared:
 
             sentences = [
                 s.strip()
-                for s in script_text.replace(
-                    "\n",
-                    " "
-                ).split(".")
+                for s in re.split(
+                    r"(?<=[.!?])\s+",
+                    script_text.replace(
+                        "\n",
+                        " "
+                    )
+                )
                 if len(s.strip()) > 20
             ]
 
             if not sentences:
                 sentences = [
                     (
-                        "Sofia enters a luxurious cinematic "
-                        f"world connected to {topic}"
+                        f"Sofia enters a luxurious world "
+                        f"connected to {topic}."
                     )
                 ]
 
-            for index in range(8):
+            for index, sentence in enumerate(
+                sentences[:self.MAX_SCENES]
+            ):
 
-                sentence = sentences[
-                    index % len(sentences)
-                ]
-
-                prepared.append(
-                    {
-                        "scene_number": index + 1,
-                        "location": (
-                            "cinematic luxury location"
-                        ),
-                        "action": sentence,
-                        "emotion": "determined",
-                        "visual_prompt": sentence,
-                        "narration": sentence,
-                        "dialogue": "",
-                    }
-                )
-
-        # -----------------------------------------------------
-        # FORCE EXACTLY 8 SCENES
-        # -----------------------------------------------------
+                prepared.append({
+                    "scene_number": index + 1,
+                    "location": "luxury cinematic location",
+                    "action": sentence,
+                    "emotion": "determined",
+                    "visual_prompt": sentence,
+                    "narration": sentence,
+                    "dialogue": "",
+                })
 
         if not prepared:
-            prepared = [
-                {
-                    "scene_number": 1,
-                    "location": "luxury mansion",
-                    "action": "Sofia begins her journey",
-                    "emotion": "determined",
-                    "visual_prompt": (
-                        "Sofia standing inside a "
-                        "beautiful luxury mansion"
-                    ),
-                    "narration": "",
-                    "dialogue": "",
-                }
-            ]
-
-        original = list(prepared)
-
-        while len(prepared) < self.MIN_SCENES:
-
-            source = original[
-                len(prepared) % len(original)
-            ]
-
-            duplicate = dict(source)
-
-            duplicate[
-                "scene_number"
-            ] = len(prepared) + 1
-
-            prepared.append(duplicate)
-
-        prepared = prepared[:self.MAX_SCENES]
+            prepared = [{
+                "scene_number": 1,
+                "location": "luxury mansion",
+                "action": "Sofia begins her journey.",
+                "emotion": "determined",
+                "visual_prompt": (
+                    "Sofia standing inside "
+                    "a magnificent luxury mansion."
+                ),
+                "narration": "",
+                "dialogue": "",
+            }]
 
         # -----------------------------------------------------
-        # DISTRIBUTE ENTIRE VOICEOVER
+        # DO NOT INVENT NEW STORY CONTENT.
+        #
+        # If the story generator gives fewer than 12 scenes,
+        # distribute those scenes across the movie rather than
+        # blindly repeating the same image.
         # -----------------------------------------------------
+
+        if len(prepared) > self.MAX_SCENES:
+            prepared = prepared[:self.MAX_SCENES]
 
         scene_duration = (
             total_duration / len(prepared)
         )
 
         for scene in prepared:
-
             scene["duration"] = max(
-                5.0,
+                4.0,
                 scene_duration
             )
 
         return prepared
 
     # =========================================================
-    # GENERATE SOFIA IMAGE
+    # CLEAN SEARCH QUERY
     # =========================================================
 
-    def _generate_scene_image(
+    def _make_visual_query(
+        self,
+        scene: Dict[str, Any]
+    ) -> str:
+
+        location = str(
+            scene.get("location", "")
+        )
+
+        action = str(
+            scene.get("action", "")
+        )
+
+        visual = str(
+            scene.get("visual_prompt", "")
+        )
+
+        combined = (
+            f"{location} {action} {visual}"
+        )
+
+        # Remove excessively long AI prompts.
+        words = combined.split()
+
+        query = " ".join(
+            words[:12]
+        )
+
+        # Remove punctuation that can make poor searches.
+        query = re.sub(
+            r"[^a-zA-Z0-9\s-]",
+            " ",
+            query
+        )
+
+        query = " ".join(
+            query.split()
+        )
+
+        if not query:
+            query = "luxury lifestyle technology"
+
+        return query[:120]
+
+    # =========================================================
+    # PEXELS PHOTO
+    # =========================================================
+
+    def _download_pexels_photo(
         self,
         scene: Dict[str, Any],
-        index: int,
+        index: int
+    ) -> str:
+
+        if not self.pexels_key:
+            return ""
+
+        query = self._make_visual_query(
+            scene
+        )
+
+        logger.info(
+            f"Searching supporting visual: {query}"
+        )
+
+        try:
+
+            response = requests.get(
+                "https://api.pexels.com/v1/search",
+                headers={
+                    "Authorization":
+                        self.pexels_key
+                },
+                params={
+                    "query": query,
+                    "orientation": "portrait",
+                    "size": "medium",
+                    "per_page": 5,
+                },
+                timeout=15,
+            )
+
+            if response.status_code != 200:
+                logger.warning(
+                    f"Pexels returned "
+                    f"{response.status_code}"
+                )
+                return ""
+
+            data = response.json()
+
+            photos = data.get(
+                "photos",
+                []
+            )
+
+            if not photos:
+                logger.warning(
+                    "No Pexels visual found."
+                )
+                return ""
+
+            # Pick a different result when possible.
+            photo = photos[
+                index % len(photos)
+            ]
+
+            src = photo.get(
+                "src",
+                {}
+            )
+
+            image_url = (
+                src.get("portrait")
+                or src.get("large")
+                or src.get("medium")
+            )
+
+            if not image_url:
+                return ""
+
+            output_dir = Path(
+                "output/supporting_visuals"
+            )
+
+            output_dir.mkdir(
+                parents=True,
+                exist_ok=True
+            )
+
+            output_file = (
+                output_dir
+                /
+                f"movie_visual_{index + 1:03d}.jpg"
+            )
+
+            image_response = requests.get(
+                image_url,
+                timeout=20
+            )
+
+            if image_response.status_code != 200:
+                return ""
+
+            output_file.write_bytes(
+                image_response.content
+            )
+
+            if output_file.exists() and (
+                output_file.stat().st_size > 5000
+            ):
+                logger.info(
+                    f"Supporting visual ready: "
+                    f"{output_file}"
+                )
+
+                return str(output_file)
+
+        except Exception as e:
+
+            logger.warning(
+                f"Pexels visual failed: {e}"
+            )
+
+        return ""
+
+    # =========================================================
+    # SOFIA AI IMAGE
+    # =========================================================
+
+    def _generate_sofia_image(
+        self,
+        scene: Dict[str, Any],
+        index: int
     ) -> str:
 
         output_dir = Path(
@@ -357,17 +461,10 @@ class ProfessionalVideoCreator:
             exist_ok=True
         )
 
-        visual = str(
-            scene.get(
-                "visual_prompt",
-                ""
-            )
-        )
-
         location = str(
             scene.get(
                 "location",
-                ""
+                "luxury location"
             )
         )
 
@@ -381,39 +478,44 @@ class ProfessionalVideoCreator:
         emotion = str(
             scene.get(
                 "emotion",
+                "determined"
+            )
+        )
+
+        visual = str(
+            scene.get(
+                "visual_prompt",
                 ""
             )
         )
 
         prompt = (
             f"{self.sofia_identity} "
-            f"Scene {index + 1}. "
-            f"Sofia is actively present. "
+            f"Sofia is actively involved in this scene. "
             f"Location: {location}. "
             f"Action: {action}. "
             f"Emotion: {emotion}. "
             f"Visual direction: {visual}. "
-            "Same Sofia identity as previous scenes. "
-            "Cinematic movie frame. "
-            "Professional lighting. "
-            "Luxury production design. "
+            "Make the image look like a frame from "
+            "an expensive Hollywood luxury thriller. "
+            "Strong cinematic composition. "
+            "Natural body position. "
+            "Sophisticated wardrobe. "
             "Realistic environment. "
-            "Natural anatomy. "
-            "No text. "
-            "No watermark. "
-            "Vertical 9:16 composition."
+            "No text. No watermark. "
+            "Portrait 9:16 composition."
         )
 
         filename = (
-            f"sofia_movie_scene_"
+            f"sofia_cinematic_"
             f"{index + 1:03d}.jpg"
         )
 
         try:
 
             logger.info(
-                f"Generating Sofia scene "
-                f"{index + 1}/{self.MAX_SCENES}"
+                f"Generating Sofia cinematic visual "
+                f"{index + 1}"
             )
 
             result = (
@@ -432,7 +534,6 @@ class ProfessionalVideoCreator:
 
         except TypeError:
 
-            # Compatibility with older generator.
             try:
 
                 result = (
@@ -451,14 +552,62 @@ class ProfessionalVideoCreator:
             except Exception as e:
 
                 logger.warning(
-                    f"Fallback image generation failed: {e}"
+                    f"Sofia image fallback failed: {e}"
                 )
 
         except Exception as e:
 
             logger.warning(
-                f"AI image generation failed: {e}"
+                f"Sofia image generation failed: {e}"
             )
+
+        return ""
+
+    # =========================================================
+    # CHOOSE VISUAL
+    # =========================================================
+
+    def _get_scene_visual(
+        self,
+        scene: Dict[str, Any],
+        index: int
+    ) -> str:
+
+        # Every third scene tries to make Sofia the focus.
+        # Other scenes prioritize story-supporting visuals.
+        use_sofia = (
+            index % 3 == 0
+            or index == 1
+            or index == 2
+        )
+
+        if use_sofia:
+
+            sofia = self._generate_sofia_image(
+                scene,
+                index
+            )
+
+            if sofia:
+                return sofia
+
+        supporting = (
+            self._download_pexels_photo(
+                scene,
+                index
+            )
+        )
+
+        if supporting:
+            return supporting
+
+        sofia = self._generate_sofia_image(
+            scene,
+            index
+        )
+
+        if sofia:
+            return sofia
 
         return ""
 
@@ -469,7 +618,7 @@ class ProfessionalVideoCreator:
     def _create_image_clip(
         self,
         image_path: str,
-        duration: float,
+        duration: float
     ):
 
         try:
@@ -479,18 +628,9 @@ class ProfessionalVideoCreator:
                 duration=duration
             )
 
-            # Fit image to 9:16.
-            scale_w = (
-                self.width / clip.w
-            )
-
-            scale_h = (
-                self.height / clip.h
-            )
-
             scale = max(
-                scale_w,
-                scale_h
+                self.width / clip.w,
+                self.height / clip.h
             )
 
             clip = clip.resized(
@@ -515,7 +655,7 @@ class ProfessionalVideoCreator:
             return None
 
     # =========================================================
-    # SUBTITLE
+    # SUBTITLES
     # =========================================================
 
     def _make_subtitle(
@@ -534,36 +674,35 @@ class ProfessionalVideoCreator:
             if not text:
                 return None
 
-            if len(text) > 120:
-                text = text[:117] + "..."
+            # Keep subtitles readable.
+            if len(text) > 140:
+                text = text[:137] + "..."
 
             subtitle = TextClip(
                 text=text,
-                font_size=34,
+                font_size=32,
                 color="white",
                 stroke_color="black",
                 stroke_width=2,
                 size=(
-                    self.width - 80,
-                    150
+                    self.width - 70,
+                    170
                 ),
                 method="caption",
             )
 
-            subtitle = (
+            return (
                 subtitle
                 .with_position(
                     (
                         "center",
-                        self.height - 210
+                        self.height - 220
                     )
                 )
                 .with_duration(
                     duration
                 )
             )
-
-            return subtitle
 
         except Exception as e:
 
@@ -574,41 +713,7 @@ class ProfessionalVideoCreator:
             return None
 
     # =========================================================
-    # TRANSITION
-    # =========================================================
-
-    def _apply_transition(
-        self,
-        clip,
-        index: int
-    ):
-
-        try:
-
-            if index == 0:
-
-                clip = clip.with_effects(
-                    [
-                        FadeIn(0.35)
-                    ]
-                )
-
-            elif index < self.MAX_SCENES - 1:
-
-                clip = clip.with_effects(
-                    [
-                        FadeIn(0.20)
-                    ]
-                )
-
-            return clip
-
-        except Exception:
-
-            return clip
-
-    # =========================================================
-    # MAIN VIDEO CREATOR
+    # MAIN CREATOR
     # =========================================================
 
     def create_professional_video(
@@ -632,7 +737,7 @@ class ProfessionalVideoCreator:
         )
 
         logger.info(
-            "SOFIA LUXURY STORY - FAST MODE"
+            "SOFIA LUXURY CINEMATIC MOVIE"
         )
 
         logger.info(
@@ -648,12 +753,9 @@ class ProfessionalVideoCreator:
         )
 
         if not voice_path.exists():
-
             logger.error(
-                f"Voiceover not found: "
-                f"{voiceover_path}"
+                f"Voiceover not found: {voiceover_path}"
             )
-
             return ""
 
         audio = None
@@ -664,7 +766,7 @@ class ProfessionalVideoCreator:
         try:
 
             # -------------------------------------------------
-            # AUDIO
+            # VOICE
             # -------------------------------------------------
 
             audio = AudioFileClip(
@@ -694,27 +796,12 @@ class ProfessionalVideoCreator:
             )
 
             logger.info(
-                f"Using exactly "
-                f"{len(story_scenes)} "
-                f"cinematic scenes."
+                f"Story contains "
+                f"{len(story_scenes)} visual beats."
             )
 
             # -------------------------------------------------
-            # IMPORTANT:
-            # NO PEXELS VIDEO PROCESSING HERE.
-            #
-            # This is intentional.
-            # It prevents downloading and decoding multiple
-            # large MP4 files on the GitHub runner.
-            # -------------------------------------------------
-
-            logger.info(
-                "Stock video processing disabled "
-                "for fast reliable production."
-            )
-
-            # -------------------------------------------------
-            # CREATE SCENES
+            # CREATE VISUALS
             # -------------------------------------------------
 
             for index, scene in enumerate(
@@ -724,7 +811,8 @@ class ProfessionalVideoCreator:
                 duration = float(
                     scene.get(
                         "duration",
-                        total_duration / 8
+                        total_duration /
+                        len(story_scenes)
                     )
                 )
 
@@ -733,22 +821,29 @@ class ProfessionalVideoCreator:
                 )
 
                 logger.info(
-                    f"SCENE {index + 1}/"
+                    f"🎬 STORY BEAT "
+                    f"{index + 1}/"
                     f"{len(story_scenes)}"
                 )
 
-                clip = None
+                logger.info(
+                    f"Location: "
+                    f"{scene.get('location', '')}"
+                )
 
-                # ---------------------------------------------
-                # GENERATE SOFIA IMAGE
-                # ---------------------------------------------
+                logger.info(
+                    f"Action: "
+                    f"{scene.get('action', '')[:120]}"
+                )
 
                 image_path = (
-                    self._generate_scene_image(
+                    self._get_scene_visual(
                         scene,
                         index
                     )
                 )
+
+                clip = None
 
                 if image_path:
 
@@ -759,74 +854,30 @@ class ProfessionalVideoCreator:
                         )
                     )
 
-                # ---------------------------------------------
-                # FALLBACK TO PREVIOUS SOFIA IMAGE
-                # ---------------------------------------------
-
-                if clip is None:
-
-                    previous_images = sorted(
-                        Path(
-                            "output/scene_images"
-                        ).glob(
-                            "sofia_movie_scene_*.jpg"
-                        )
-                    )
-
-                    if previous_images:
-
-                        fallback_image = (
-                            str(
-                                previous_images[-1]
-                            )
-                        )
-
-                        logger.warning(
-                            "Using previous Sofia "
-                            "image as scene fallback."
-                        )
-
-                        clip = (
-                            self._create_image_clip(
-                                fallback_image,
-                                duration
-                            )
-                        )
-
-                # ---------------------------------------------
-                # FINAL FALLBACK
-                # ---------------------------------------------
-
                 if clip is None:
 
                     logger.warning(
-                        "No image available. "
-                        "Using black cinematic frame."
+                        "Visual unavailable. "
+                        "Using cinematic fallback."
                     )
-
-                    from moviepy import ColorClip
 
                     clip = ColorClip(
                         size=self.resolution,
                         color=(
-                            10,
-                            10,
-                            14
+                            12,
+                            12,
+                            18
                         ),
                         duration=duration
                     )
 
-                # ---------------------------------------------
-                # LIGHTWEIGHT SUBTITLE
-                # ---------------------------------------------
+                # -------------------------------------------------
+                # SUBTITLE
+                # -------------------------------------------------
 
                 subtitle_text = (
-                    scene.get(
-                        "dialogue"
-                    )
-                    or scene.get(
-                        "narration"
-                    )
+                    scene.get("dialogue")
+                    or scene.get("narration")
                     or ""
                 )
 
@@ -847,57 +898,55 @@ class ProfessionalVideoCreator:
                         size=self.resolution
                     )
 
-                # ---------------------------------------------
-                # LIGHT TRANSITION
-                # ---------------------------------------------
+                # -------------------------------------------------
+                # TRANSITIONS
+                # -------------------------------------------------
 
-                clip = (
-                    self._apply_transition(
-                        clip,
-                        index
-                    )
-                )
+                try:
+
+                    effects = []
+
+                    if index == 0:
+                        effects.append(
+                            FadeIn(0.4)
+                        )
+
+                    if index > 0:
+                        effects.append(
+                            FadeIn(0.2)
+                        )
+
+                    if effects:
+                        clip = clip.with_effects(
+                            effects
+                        )
+
+                except Exception:
+                    pass
 
                 video_clips.append(
                     clip
                 )
 
                 logger.info(
-                    f"SCENE {index + 1}/"
+                    f"STORY BEAT "
+                    f"{index + 1}/"
                     f"{len(story_scenes)} READY"
                 )
 
-            # -------------------------------------------------
-            # VERIFY SCENES
-            # -------------------------------------------------
-
             if not video_clips:
-
                 logger.error(
-                    "No video scenes were created."
+                    "No visual scenes created."
                 )
-
                 return ""
-
-            logger.info(
-                "================================================"
-            )
-
-            logger.info(
-                "ALL 8 SCENES READY"
-            )
-
-            logger.info(
-                "Combining scenes..."
-            )
-
-            logger.info(
-                "================================================"
-            )
 
             # -------------------------------------------------
             # COMBINE
             # -------------------------------------------------
+
+            logger.info(
+                "Combining cinematic scenes..."
+            )
 
             final_video = (
                 concatenate_videoclips(
@@ -906,39 +955,28 @@ class ProfessionalVideoCreator:
                 )
             )
 
-            # -------------------------------------------------
-            # EXACT AUDIO LENGTH
-            # -------------------------------------------------
-
+            # Match voice duration.
             if final_video.duration > total_duration:
 
                 final_video = (
-                    final_video
-                    .subclipped(
+                    final_video.subclipped(
                         0,
                         total_duration
                     )
                 )
 
-            elif final_video.duration < total_duration:
-
-                logger.warning(
-                    "Video is slightly shorter "
-                    "than voice-over. "
-                    "Using available duration."
-                )
-
             # -------------------------------------------------
-            # VOICEOVER
+            # VOICE
             # -------------------------------------------------
 
             final_video = (
-                final_video
-                .with_audio(audio)
+                final_video.with_audio(
+                    audio
+                )
             )
 
             # -------------------------------------------------
-            # BACKGROUND MUSIC
+            # MUSIC
             # -------------------------------------------------
 
             if add_music:
@@ -953,10 +991,6 @@ class ProfessionalVideoCreator:
 
                     try:
 
-                        logger.info(
-                            "Adding background music..."
-                        )
-
                         music = AudioFileClip(
                             music_path
                         )
@@ -967,17 +1001,15 @@ class ProfessionalVideoCreator:
                                 int(
                                     total_duration /
                                     music.duration
-                                )
-                                + 1
+                                ) + 1
                             )
 
-                            music_parts = []
+                            pieces = []
 
                             for _ in range(
                                 repeat_count
                             ):
-
-                                music_parts.append(
+                                pieces.append(
                                     AudioFileClip(
                                         music_path
                                     )
@@ -985,7 +1017,7 @@ class ProfessionalVideoCreator:
 
                             music = (
                                 concatenate_audioclips(
-                                    music_parts
+                                    pieces
                                 )
                             )
 
@@ -996,7 +1028,7 @@ class ProfessionalVideoCreator:
                                 total_duration
                             )
                             .with_volume_scaled(
-                                0.05
+                                0.045
                             )
                         )
 
@@ -1010,8 +1042,7 @@ class ProfessionalVideoCreator:
                         )
 
                         final_video = (
-                            final_video
-                            .with_audio(
+                            final_video.with_audio(
                                 final_audio
                             )
                         )
@@ -1027,7 +1058,7 @@ class ProfessionalVideoCreator:
                         )
 
             # -------------------------------------------------
-            # OUTPUT
+            # RENDER
             # -------------------------------------------------
 
             output = Path(
@@ -1039,20 +1070,16 @@ class ProfessionalVideoCreator:
                 exist_ok=True
             )
 
-            # -------------------------------------------------
-            # FINAL RENDER
-            # -------------------------------------------------
-
             logger.info(
                 "================================================"
             )
 
             logger.info(
-                "RENDERING FINAL SOFIA VIDEO"
+                "🎥 RENDERING FINAL CINEMATIC MOVIE"
             )
 
             logger.info(
-                "720x1280 / 24 FPS / FAST MODE"
+                "720x1280 / 24 FPS"
             )
 
             logger.info(
@@ -1061,29 +1088,14 @@ class ProfessionalVideoCreator:
 
             final_video.write_videofile(
                 str(output),
-
                 fps=self.fps,
-
                 codec="libx264",
-
                 audio_codec="aac",
-
-                # Smaller and faster than the previous 4500k.
                 bitrate="3000k",
-
-                # Fastest practical preset for GitHub runner.
                 preset="ultrafast",
-
-                # Do not use excessive CPU threads.
                 threads=2,
-
-                # Reduce MoviePy console overhead.
                 logger=None,
             )
-
-            # -------------------------------------------------
-            # VERIFY OUTPUT
-            # -------------------------------------------------
 
             if output.exists():
 
@@ -1098,7 +1110,7 @@ class ProfessionalVideoCreator:
                 )
 
                 logger.info(
-                    f"SOFIA VIDEO CREATED SUCCESSFULLY"
+                    "🎬 SOFIA CINEMATIC MOVIE COMPLETE"
                 )
 
                 logger.info(
@@ -1116,7 +1128,7 @@ class ProfessionalVideoCreator:
                 return str(output)
 
             logger.error(
-                "Final video file was not created."
+                "Video file was not created."
             )
 
             return ""
@@ -1124,42 +1136,32 @@ class ProfessionalVideoCreator:
         except Exception as e:
 
             logger.exception(
-                f"Sofia video creation failed: {e}"
+                f"Cinematic video creation failed: {e}"
             )
 
             return ""
 
         finally:
 
-            # -------------------------------------------------
-            # CLEANUP
-            # -------------------------------------------------
-
             logger.info(
                 "Cleaning video resources..."
             )
 
             try:
-
                 if final_video:
                     final_video.close()
-
             except Exception:
                 pass
 
             try:
-
                 if music:
                     music.close()
-
             except Exception:
                 pass
 
             try:
-
                 if audio:
                     audio.close()
-
             except Exception:
                 pass
 
@@ -1167,7 +1169,6 @@ class ProfessionalVideoCreator:
 
                 try:
                     clip.close()
-
                 except Exception:
                     pass
 
@@ -1176,51 +1177,25 @@ class ProfessionalVideoCreator:
             )
 
 
-# =============================================================
-# TEST
-# =============================================================
-
 if __name__ == "__main__":
 
-    print(
-        "\n"
-        + "=" * 65
-    )
-
-    print(
-        "SOFIA LUXURY STORY"
-    )
-
-    print(
-        "FAST VERTICAL VIDEO CREATOR"
-    )
-
-    print(
-        "=" * 65
-    )
+    print("=" * 60)
+    print("SOFIA LUXURY CINEMATIC MOVIE CREATOR")
+    print("=" * 60)
 
     creator = ProfessionalVideoCreator()
 
     print(
-        f"\nResolution: "
+        f"Resolution: "
         f"{creator.width}x{creator.height}"
     )
 
     print(
-        f"Aspect ratio: "
-        f"{creator.width / creator.height:.3f}"
+        f"FPS: {creator.fps}"
     )
 
     print(
-        f"FPS: "
-        f"{creator.fps}"
+        f"Story beats: {creator.MIN_SCENES}"
     )
 
-    print(
-        f"Scenes: "
-        f"{creator.MIN_SCENES}"
-    )
-
-    print(
-        "\nReady for Sofia Luxury Story production."
-    )
+    print("Ready.")
