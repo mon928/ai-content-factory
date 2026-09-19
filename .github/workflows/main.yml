@@ -27,22 +27,60 @@ jobs:
           sudo apt-get install -y ffmpeg
           pip install -r requirements.txt
 
-      - name: Create video
+       - name: Create video and upload to YouTube
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}
+          YOUTUBE_TOKEN_JSON: ${{ secrets.YOUTUBE_TOKEN_JSON }}
           VIDEO_TOPIC: ${{ inputs.topic }}
         run: |
-          python -c "import asyncio, os; from auto_scheduler import AutoScheduler; asyncio.run(AutoScheduler(language='english', niche='tech').create_content(os.environ.get('VIDEO_TOPIC') or None))"
+          python - <<'PY'
+          import asyncio
+          import os
+          from auto_scheduler import AutoScheduler
+          from platforms.youtube_uploader import YouTubeUploader
 
-      - name: Upload generated videos
-        uses: actions/upload-artifact@v4
-        with:
-          name: sofia-luxury-video
-          path: |
-            output/*.mp4
-            output/*.jpg
-            output/*.json
-          if-no-files-found: warn
+          async def main():
+              scheduler = AutoScheduler(
+                  language="english",
+                  niche="tech"
+              )
+
+              result = await scheduler.create_content(
+                  os.environ.get("VIDEO_TOPIC") or None
+              )
+
+              if not result:
+                  raise RuntimeError("Video creation failed.")
+
+              uploader = YouTubeUploader()
+
+              if not uploader.authenticate():
+                  raise RuntimeError("YouTube authentication failed.")
+
+              upload = uploader.upload_video(
+                  result["video"],
+                  result["seo"],
+                  privacy="private"
+              )
+
+              if not upload.get("success"):
+                  raise RuntimeError(
+                      f"YouTube upload failed: {upload}"
+                  )
+
+              thumbnail = result.get("thumbnail")
+
+              if thumbnail:
+                  uploader.set_thumbnail(
+                      upload["video_id"],
+                      thumbnail
+                  )
+
+              print("YouTube upload successful:")
+              print(upload["url"])
+
+          asyncio.run(main())
+          PY
