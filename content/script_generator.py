@@ -2,36 +2,36 @@
 SOFIA LUXURY STORY
 CINEMATIC 5-MINUTE STORY GENERATOR
 
-Creates original short-drama stories where Sofia is always
-the central character.
+Creates original Sofia-centered vertical mini-movies.
 
 Designed for:
 - Luxury drama
-- Action
 - Romance
 - Mystery
-- Fantasy
+- Action
 - Adventure
 - Billionaire stories
-- Time travel
 - Royal stories
+- Fantasy
+- Time travel
 - Crime/thriller
 - Supernatural stories
 
-Target:
-- Approximately 5 minutes
+The generator creates:
+- One connected story
 - 700-800 spoken words
-- Strong opening hook
-- Connected scenes
-- Sofia appears throughout
-- Cinematic storytelling
+- 8 major story scenes
+- Detailed visual direction
+- Sofia visible in every scene
+- Different shot types
+- Luxury environments
 - Emotional progression
 - Mid-story twist
-- Strong climax
-- Memorable ending/cliffhanger
+- Climax
+- Resolution or cliffhanger
 
-Model:
-Groq openai/gpt-oss-120b
+The video renderer can use the scene information to
+create a faster, more cinematic sequence.
 """
 
 import os
@@ -53,14 +53,13 @@ load_dotenv()
 
 
 class ScriptGenerator:
-    """
-    Sofia Luxury Story cinematic story generator.
-    """
 
     MODEL = "openai/gpt-oss-120b"
 
     TARGET_WORDS_MIN = 700
     TARGET_WORDS_MAX = 800
+
+    SCENE_COUNT = 8
 
     def __init__(
         self,
@@ -74,8 +73,8 @@ class ScriptGenerator:
 
         if not api_key:
             raise RuntimeError(
-                "GROQ_API_KEY is missing. Add it to your environment or "
-                "Streamlit/GitHub Actions secrets."
+                "GROQ_API_KEY is missing. Add it to your environment "
+                "or GitHub Actions secrets."
             )
 
         self.client = Groq(api_key=api_key)
@@ -85,9 +84,9 @@ class ScriptGenerator:
             f"{self.language}/{self.niche}"
         )
 
-    # ---------------------------------------------------------
+    # =========================================================
     # MAIN GENERATOR
-    # ---------------------------------------------------------
+    # =========================================================
 
     def generate_script(
         self,
@@ -98,7 +97,8 @@ class ScriptGenerator:
         topic_text = self._normalize_topic(topic)
 
         logger.info(
-            f"🎬 Creating Sofia Luxury Story: {topic_text[:100]}"
+            f"🎬 Creating cinematic Sofia story: "
+            f"{topic_text[:120]}"
         )
 
         prompt = self._build_story_prompt(
@@ -107,6 +107,7 @@ class ScriptGenerator:
         )
 
         try:
+
             response = self.client.chat.completions.create(
                 model=self.MODEL,
                 messages=[
@@ -119,8 +120,8 @@ class ScriptGenerator:
                         "content": prompt
                     }
                 ],
-                temperature=0.85,
-                max_tokens=4500
+                temperature=0.82,
+                max_tokens=5000
             )
 
             raw = response.choices[0].message.content or ""
@@ -132,15 +133,16 @@ class ScriptGenerator:
             )
 
             logger.info(
-                f"✅ Sofia story created: "
+                f"✅ Sofia cinematic story created: "
                 f"{result.get('title', 'Untitled')} | "
                 f"{result.get('word_count', 0)} words | "
-                f"~{result.get('estimated_duration_min', 0)} min"
+                f"{len(result.get('scenes', []))} scenes"
             )
 
             return result
 
         except Exception as e:
+
             logger.exception(
                 f"❌ Sofia story generation failed: {e}"
             )
@@ -156,100 +158,170 @@ class ScriptGenerator:
                 "error": str(e)
             }
 
-    # ---------------------------------------------------------
+    # =========================================================
     # SYSTEM PROMPT
-    # ---------------------------------------------------------
+    # =========================================================
 
     def _system_prompt(self) -> str:
 
         return """
-You are the head writer and cinematic story director for
+You are the head writer and visual story director for
 SOFIA LUXURY STORY.
 
-Your job is to create ORIGINAL five-minute vertical mini-movies.
+You create original vertical mini-movies.
 
-Sofia is ALWAYS the central character.
+Sofia is ALWAYS the protagonist.
 
-Sofia must never become a background character.
+She is not a presenter.
+She is not a narrator standing outside the story.
+She is the person living through the story.
 
-Every story must make the audience care about Sofia,
-wonder what happens next, and want to watch until the ending.
+Every story must feel like a real short movie.
 
-IMPORTANT:
+IMPORTANT STORY RULES:
 
-1. Sofia must appear in the story from beginning to end.
+1. Sofia must be central in EVERY scene.
 
-2. Sofia must be the person who drives the important actions.
+2. Sofia must perform meaningful actions.
 
-3. Never write a generic story where Sofia could be replaced
-   by another character.
+3. Sofia must have a clear goal.
 
-4. The story must have a clear beginning, escalation, climax,
-   and ending.
+4. Give Sofia something to lose.
 
-5. Every scene must connect naturally to the previous scene.
+5. Give Sofia something to discover.
 
-6. Avoid random disconnected images.
+6. Give Sofia a difficult decision.
 
-7. Use cinematic visual descriptions that can later be converted
-   into AI-generated images.
+7. The story must progress naturally.
 
-8. Make locations visually rich:
-   luxury hotels, private jets, mansions, skyscrapers,
-   yachts, exotic cities, royal palaces, private islands,
-   underground clubs, futuristic cities, expensive restaurants,
-   mysterious estates, etc.
+8. Each scene must cause or lead to the next scene.
 
-9. Characters should have strong emotions:
-   fear, confidence, suspicion, love, anger, determination,
-   surprise, grief, relief, excitement.
+9. Never create eight unrelated luxury pictures.
 
-10. Use twists carefully. The twist should change what the
-    audience thinks is happening.
+10. Never make the story feel like a lecture.
 
-11. Build toward a strong climax.
+11. Never repeatedly describe Sofia simply standing,
+smiling, looking beautiful, or walking.
 
-12. End with either:
-    - a satisfying emotional ending,
-    - a powerful reveal,
-    - or a cliffhanger for another Sofia story.
+12. Sofia should interact with objects, locations,
+vehicles, technology and other characters.
 
-13. Do not copy existing movies, dramas, books, or NetShort stories.
+13. Keep Sofia visually recognizable as the same woman.
 
-14. Create ORIGINAL characters, situations, dialogue,
-    locations, and plot events.
+14. Her clothing may change when the story requires it,
+but her facial identity must remain consistent.
 
-15. The final story should feel like a miniature movie,
-    not a YouTube lecture.
+15. Use realistic emotional progression.
 
-16. Do NOT include:
-    [pause]
-    [music]
-    [laughs]
-    [sound effect]
-    [camera]
-    or other production instructions inside the spoken script.
+16. Include a strong opening hook.
 
-17. Write natural spoken English.
+17. Include escalating tension.
 
-18. The narration/dialogue should sound emotional and cinematic.
+18. Include a meaningful twist.
 
-19. Do not waste words on introductions such as
-    "Welcome back to my channel."
+19. Include a strong climax.
 
-20. Start with something that makes the viewer immediately
-    curious.
+20. Finish with emotional payoff or a compelling cliffhanger.
 
-Sofia's identity must remain visually consistent:
-same woman, same recognizable facial identity,
-even when her clothes, hairstyle, location, or genre changes.
+VISUAL RULES:
 
-The result must be suitable for a vertical 9:16 short drama.
+Every scene must contain a strong visual idea.
+
+Use a mixture of:
+
+- wide shot
+- medium shot
+- close-up
+- extreme close-up
+- over-the-shoulder
+- side profile
+- low angle
+- high angle
+- point of view
+- environmental detail
+
+Do not use the same shot type repeatedly.
+
+Sofia should be visible in most frames.
+
+Luxury environments should feel believable and detailed.
+
+Use cinematic lighting, realistic environments,
+rich textures and natural human expressions.
+
+Avoid generic AI-looking descriptions.
+
+Every visual prompt must describe:
+- Sofia
+- her action
+- her emotion
+- the environment
+- lighting
+- camera framing
+- important story objects
+
+STORY CONTINUITY:
+
+If Sofia enters a hotel in scene 2,
+scene 3 must logically continue inside or immediately
+after that hotel.
+
+If Sofia has a black dress and evening setting,
+do not randomly change her into casual daytime clothes
+without a story reason.
+
+If Sofia discovers an object, that object can return later.
+
+If another character appears, give that character a
+consistent role.
+
+DIALOGUE:
+
+Use short natural dialogue.
+
+Dialogue should sound like real people.
+
+Avoid long speeches.
+
+NARRATION:
+
+Narration should advance the story.
+
+Do not repeat what the viewer can already see.
+
+Do not write:
+"Here we can see Sofia standing in a hotel."
+
+Instead write something that advances the story.
+
+The audience should always have a reason to keep watching.
+
+Do not include:
+
+[pause]
+[music]
+[sound effect]
+[camera]
+[zoom]
+[cut]
+[scene]
+or other production instructions inside spoken text.
+
+Do not include channel introductions.
+
+Do not say:
+"Welcome back to my channel."
+
+The first sentence should create curiosity.
+
+The story must be ORIGINAL.
+
+Do not copy movies, books, dramas or existing social-media stories.
 """
 
-    # ---------------------------------------------------------
+    # =========================================================
     # STORY PROMPT
-    # ---------------------------------------------------------
+    # =========================================================
 
     def _build_story_prompt(
         self,
@@ -262,123 +334,259 @@ Create an ORIGINAL SOFIA LUXURY STORY based on:
 
 {topic}
 
-TARGET LENGTH:
+TARGET:
 Approximately {duration} minutes.
 
-TARGET SPOKEN WORD COUNT:
+SPOKEN WORD COUNT:
 700-800 words.
 
-GENRE:
-Choose the genre that best fits the idea.
-It may be luxury action, romance, mystery, fantasy,
-adventure, billionaire drama, time travel, royal drama,
-crime thriller, supernatural drama, or a combination.
+FORMAT:
+Vertical 9:16 cinematic mini-movie.
 
-IMPORTANT:
+NUMBER OF MAJOR SCENES:
+Exactly {self.SCENE_COUNT}.
 
-This is NOT a normal YouTube information video.
+The eight scenes must form ONE continuous story.
 
-It is a MINIATURE CINEMATIC MOVIE.
+=========================================================
+STORY STRUCTURE
+=========================================================
 
-Sofia is the protagonist.
+SCENE 1 — HOOK
 
-Create approximately 10-14 connected story beats.
+Start immediately with something unusual,
+dangerous, beautiful or mysterious.
 
-STORY STRUCTURE:
+Sofia must be visible.
 
-ACT 1 — THE HOOK
-Open with an intriguing or dangerous moment involving Sofia.
+The viewer should immediately ask:
 
-ACT 2 — THE WORLD
-Show Sofia's luxurious or unusual world and establish
-what she wants.
+"What is happening?"
 
-ACT 3 — THE PROBLEM
-Something unexpected threatens Sofia or someone she cares about.
+=========================================================
 
-ACT 4 — ESCALATION
-The danger or mystery becomes much bigger.
+SCENE 2 — SETUP
 
-ACT 5 — THE TWIST
-Reveal information that changes the audience's understanding
-of what is happening.
+Show Sofia's luxurious world.
 
-ACT 6 — THE CLIMAX
-Sofia must make an important decision or take decisive action.
+Establish what Sofia wants
+and why it matters.
 
-ACT 7 — THE ENDING
-Give the audience an emotional payoff or a powerful cliffhanger.
+Give the audience a reason to care about her.
 
-VISUAL STORYTELLING:
+=========================================================
 
-Every beat should give us a clear visual idea.
+SCENE 3 — PROBLEM
 
-Examples:
+Something unexpected happens.
 
-- Sofia walking through a luxury hotel at night.
-- Sofia stepping from a black luxury car.
-- Sofia looking across a city from a penthouse.
-- Sofia running through a rain-soaked street.
-- Sofia discovering a hidden room.
-- Sofia confronting an unknown enemy.
-- Sofia aboard a private jet.
-- Sofia standing on a yacht at sunset.
-- Sofia entering an ancient palace.
-- Sofia facing danger while remaining calm.
+Sofia must react.
 
-Do not simply list these examples.
-Create a completely original story.
+The problem must directly affect her.
 
-DIALOGUE:
+=========================================================
 
-Use short, natural dialogue when it makes the story stronger.
+SCENE 4 — ESCALATION
 
-Do not turn the story into a wall of dialogue.
+Sofia investigates, escapes, follows someone,
+discovers something, travels somewhere,
+or takes action.
 
-NARRATION:
+The story should become more intense.
 
-Use cinematic narration to connect scenes.
+=========================================================
 
-OUTPUT FORMAT:
+SCENE 5 — TWIST
+
+Reveal something that changes the meaning
+of what happened earlier.
+
+The twist must connect to previous scenes.
+
+=========================================================
+
+SCENE 6 — DECISION
+
+Sofia must make a difficult choice.
+
+Do not let another character solve the story for her.
+
+Sofia drives the action.
+
+=========================================================
+
+SCENE 7 — CLIMAX
+
+Sofia confronts the main problem.
+
+This should be the most emotionally powerful
+part of the story.
+
+=========================================================
+
+SCENE 8 — ENDING
+
+Give the audience:
+
+- emotional payoff,
+OR
+- a beautiful final moment,
+OR
+- a powerful reveal,
+OR
+- a strong cliffhanger.
+
+End with a memorable Sofia moment.
+
+=========================================================
+LUXURY VISUAL WORLD
+=========================================================
+
+Use luxury naturally when appropriate:
+
+luxury hotels
+penthouse apartments
+private jets
+supercars
+yachts
+exclusive restaurants
+designer boutiques
+private islands
+royal palaces
+luxury trains
+high-rise city views
+private clubs
+beautiful estates
+futuristic architecture
+exclusive events
+
+But luxury must support the story.
+
+Do not simply list expensive objects.
+
+=========================================================
+SOFIA VISUAL CONTINUITY
+=========================================================
+
+Sofia is the same recognizable woman throughout the story.
+
+Every scene MUST contain:
+
+"sofia_visible": true
+
+Every scene MUST describe:
+
+- Sofia's appearance
+- Sofia's action
+- Sofia's emotion
+- location
+- time
+- lighting
+- camera framing
+- important objects
+- visual atmosphere
+
+=========================================================
+SHOT DESIGN
+=========================================================
+
+Each scene must have a different primary shot type.
+
+Use this progression where appropriate:
+
+1. wide cinematic establishing shot
+2. medium character shot
+3. close-up
+4. over-the-shoulder
+5. low-angle or tracking-style composition
+6. close-up reaction
+7. dynamic dramatic shot
+8. beautiful final wide/close shot
+
+The shot type is descriptive information for the image generator.
+Do not put camera instructions inside the spoken narration.
+
+=========================================================
+PACING
+=========================================================
+
+Do NOT make every scene feel equally slow.
+
+Scenes containing:
+- danger
+- discovery
+- confrontation
+- escape
+- surprise
+
+should have energetic visual descriptions.
+
+Quiet emotional scenes can breathe slightly longer.
+
+=========================================================
+DIALOGUE
+=========================================================
+
+Use short dialogue.
+
+Example style:
+
+"I knew you would come."
+
+Sofia looked at him.
+
+"Then you already know why I'm here."
+
+Do not make dialogue sound theatrical or artificial.
+
+=========================================================
+OUTPUT
+=========================================================
 
 Return ONLY valid JSON.
 
-Use exactly this structure:
+Use exactly:
 
 {{
-  "title": "Original Sofia story title",
-  "genre": "Story genre",
-  "logline": "One sentence describing the story",
-  "hook": "The opening hook",
+  "title": "Original title",
+  "genre": "Genre",
+  "logline": "One sentence",
+  "hook": "Opening hook",
   "scenes": [
     {{
       "scene_number": 1,
-      "location": "Specific visual location",
+      "scene_purpose": "What this scene accomplishes",
+      "location": "Specific location",
       "time": "Time of day",
+      "duration_hint": "short",
+      "shot_type": "wide",
+      "sofia_visible": true,
+      "sofia_appearance": "Consistent description of Sofia",
       "action": "What Sofia is doing",
-      "emotion": "Sofia's emotion",
-      "visual_prompt": "Detailed cinematic visual description",
-      "dialogue": "Optional short dialogue",
+      "emotion": "Her emotional state",
+      "continuity": "Connection to previous/next scene",
+      "luxury_detail": "Important luxury/environment detail",
+      "visual_prompt": "Detailed cinematic image prompt",
+      "dialogue": "Short natural dialogue",
       "narration": "Narration for this scene"
     }}
   ],
-  "script": "Complete spoken narration and dialogue for the entire story"
+  "script": "Complete spoken story"
 }}
 
-The "script" must contain approximately 700-800 words.
+RULES:
 
-The scenes must form ONE continuous story.
-
-Sofia must be present or central in every scene.
-
-Do not include markdown fences.
-
-Do not add commentary outside the JSON.
+- Exactly 8 scenes.
+- Sofia visible in every scene.
+- Approximately 700-800 words.
+- One connected story.
+- No markdown.
+- No commentary outside JSON.
 """
 
-    # ---------------------------------------------------------
+    # =========================================================
     # TOPIC NORMALIZER
-    # ---------------------------------------------------------
+    # =========================================================
 
     def _normalize_topic(self, topic: Any) -> str:
 
@@ -388,19 +596,26 @@ Do not add commentary outside the JSON.
                 topic.get("topic")
                 or topic.get("title")
                 or topic.get("idea")
-                or "Sofia Luxury Story"
+                or "Sofia discovers a dangerous secret "
+                   "inside a luxury empire."
             )
 
             return str(value).strip()
 
         if topic is None:
-            return "Sofia discovers a dangerous secret inside a luxury empire."
 
-        return str(topic).strip()
+            return (
+                "Sofia discovers a dangerous secret "
+                "inside a luxury empire."
+            )
 
-    # ---------------------------------------------------------
+        value = str(topic).strip()
+
+        return value or "Sofia Luxury Story"
+
+    # =========================================================
     # RESPONSE PARSER
-    # ---------------------------------------------------------
+    # =========================================================
 
     def _parse_response(
         self,
@@ -411,7 +626,6 @@ Do not add commentary outside the JSON.
 
         cleaned = raw.strip()
 
-        # Remove accidental markdown fences.
         cleaned = re.sub(
             r"^```(?:json)?\s*",
             "",
@@ -427,28 +641,32 @@ Do not add commentary outside the JSON.
 
         data = None
 
-        # First attempt: direct JSON.
         try:
+
             data = json.loads(cleaned)
+
         except json.JSONDecodeError:
 
-            # Second attempt: find JSON object.
             start = cleaned.find("{")
             end = cleaned.rfind("}")
 
             if start >= 0 and end > start:
+
                 try:
+
                     data = json.loads(
                         cleaned[start:end + 1]
                     )
+
                 except json.JSONDecodeError:
+
                     data = None
 
         if not isinstance(data, dict):
 
             logger.warning(
-                "⚠️ Model returned invalid JSON. "
-                "Using safe fallback story."
+                "⚠️ Invalid JSON returned. "
+                "Using fallback story."
             )
 
             return self._fallback_story(
@@ -484,60 +702,77 @@ Do not add commentary outside the JSON.
             )
         ).strip()
 
-        script = str(
-            data.get(
-                "script",
-                ""
+        script = self._clean_script(
+            str(
+                data.get(
+                    "script",
+                    ""
+                )
             )
-        ).strip()
+        )
 
-        scenes = data.get("scenes", [])
+        raw_scenes = data.get(
+            "scenes",
+            []
+        )
 
-        if not isinstance(scenes, list):
-            scenes = []
+        if not isinstance(raw_scenes, list):
+            raw_scenes = []
 
-        script = self._clean_script(script)
+        scenes = self._normalize_scenes(
+            raw_scenes
+        )
 
-        # If the model somehow returned an empty script,
-        # construct one from the scene narration.
+        # -----------------------------------------------------
+        # Build spoken script from scenes if necessary.
+        # -----------------------------------------------------
+
         if len(script.split()) < 100:
 
-            scene_parts = []
+            parts = []
 
             for scene in scenes:
 
-                if not isinstance(scene, dict):
-                    continue
-
                 narration = str(
-                    scene.get("narration", "")
+                    scene.get(
+                        "narration",
+                        ""
+                    )
                 ).strip()
 
                 dialogue = str(
-                    scene.get("dialogue", "")
+                    scene.get(
+                        "dialogue",
+                        ""
+                    )
                 ).strip()
 
                 if narration:
-                    scene_parts.append(narration)
+                    parts.append(narration)
 
                 if dialogue:
-                    scene_parts.append(dialogue)
+                    parts.append(dialogue)
 
-            script = "\n\n".join(scene_parts)
+            script = "\n\n".join(parts)
 
-        # Final safety fallback.
+        # -----------------------------------------------------
+        # Final fallback.
+        # -----------------------------------------------------
+
         if len(script.split()) < 100:
 
-            fallback = self._fallback_story(
+            return self._fallback_story(
                 topic,
                 duration_minutes
             )
 
-            return fallback
+        word_count = len(
+            script.split()
+        )
 
-        word_count = len(script.split())
-
-        estimated_duration = word_count / 150.0
+        estimated_duration = (
+            word_count / 150.0
+        )
 
         return {
             "topic": topic,
@@ -556,17 +791,229 @@ Do not add commentary outside the JSON.
             "niche": self.niche
         }
 
-    # ---------------------------------------------------------
-    # SCRIPT CLEANER
-    # ---------------------------------------------------------
+    # =========================================================
+    # SCENE NORMALIZER
+    # =========================================================
 
-    def _clean_script(self, script: str) -> str:
+    def _normalize_scenes(
+        self,
+        scenes: List[Any]
+    ) -> List[Dict[str, Any]]:
+
+        normalized = []
+
+        shot_types = [
+            "wide",
+            "medium",
+            "close-up",
+            "over-the-shoulder",
+            "low-angle",
+            "reaction close-up",
+            "dynamic dramatic",
+            "final cinematic"
+        ]
+
+        for index, scene in enumerate(
+            scenes[:self.SCENE_COUNT]
+        ):
+
+            if not isinstance(scene, dict):
+                continue
+
+            number = index + 1
+
+            normalized_scene = {
+                "scene_number": number,
+
+                "scene_purpose": str(
+                    scene.get(
+                        "scene_purpose",
+                        ""
+                    )
+                ).strip(),
+
+                "location": str(
+                    scene.get(
+                        "location",
+                        "Luxury location"
+                    )
+                ).strip(),
+
+                "time": str(
+                    scene.get(
+                        "time",
+                        "Night"
+                    )
+                ).strip(),
+
+                "duration_hint": str(
+                    scene.get(
+                        "duration_hint",
+                        "medium"
+                    )
+                ).strip(),
+
+                "shot_type": str(
+                    scene.get(
+                        "shot_type",
+                        shot_types[index]
+                    )
+                ).strip(),
+
+                "sofia_visible": True,
+
+                "sofia_appearance": str(
+                    scene.get(
+                        "sofia_appearance",
+                        "Sofia, consistent recognizable appearance"
+                    )
+                ).strip(),
+
+                "action": str(
+                    scene.get(
+                        "action",
+                        "Sofia takes meaningful action."
+                    )
+                ).strip(),
+
+                "emotion": str(
+                    scene.get(
+                        "emotion",
+                        "determined"
+                    )
+                ).strip(),
+
+                "continuity": str(
+                    scene.get(
+                        "continuity",
+                        ""
+                    )
+                ).strip(),
+
+                "luxury_detail": str(
+                    scene.get(
+                        "luxury_detail",
+                        ""
+                    )
+                ).strip(),
+
+                "visual_prompt": str(
+                    scene.get(
+                        "visual_prompt",
+                        ""
+                    )
+                ).strip(),
+
+                "dialogue": str(
+                    scene.get(
+                        "dialogue",
+                        ""
+                    )
+                ).strip(),
+
+                "narration": str(
+                    scene.get(
+                        "narration",
+                        ""
+                    )
+                ).strip()
+            }
+
+            # Make sure the image prompt explicitly
+            # tells the image generator that Sofia must
+            # be the visible protagonist.
+            if "Sofia" not in normalized_scene[
+                "visual_prompt"
+            ]:
+
+                normalized_scene[
+                    "visual_prompt"
+                ] = (
+                    "Sofia is clearly visible as the central "
+                    "character. "
+                    + normalized_scene["visual_prompt"]
+                )
+
+            normalized.append(
+                normalized_scene
+            )
+
+        # If the AI returned fewer than 8 scenes,
+        # duplicate the final valid scene only as a
+        # structural fallback.
+        while len(normalized) < self.SCENE_COUNT:
+
+            if normalized:
+
+                source = dict(
+                    normalized[-1]
+                )
+
+                source[
+                    "scene_number"
+                ] = len(normalized) + 1
+
+                source[
+                    "scene_purpose"
+                ] = (
+                    "Continuation of Sofia's story."
+                )
+
+                normalized.append(
+                    source
+                )
+
+            else:
+
+                normalized.append({
+                    "scene_number": len(normalized) + 1,
+                    "scene_purpose": "Sofia's story.",
+                    "location": "Luxury interior",
+                    "time": "Night",
+                    "duration_hint": "medium",
+                    "shot_type": shot_types[
+                        len(normalized)
+                    ],
+                    "sofia_visible": True,
+                    "sofia_appearance": (
+                        "Sofia, consistent recognizable "
+                        "facial identity"
+                    ),
+                    "action": (
+                        "Sofia moves forward with "
+                        "determination."
+                    ),
+                    "emotion": "determined",
+                    "continuity": "",
+                    "luxury_detail": (
+                        "Elegant luxury architecture."
+                    ),
+                    "visual_prompt": (
+                        "Sofia clearly visible as the "
+                        "central character in a cinematic "
+                        "luxury environment."
+                    ),
+                    "dialogue": "",
+                    "narration": (
+                        "Sofia knew she could not "
+                        "turn back."
+                    )
+                })
+
+        return normalized[:self.SCENE_COUNT]
+
+    # =========================================================
+    # SCRIPT CLEANER
+    # =========================================================
+
+    def _clean_script(
+        self,
+        script: str
+    ) -> str:
 
         if not script:
             return ""
 
-        # Remove production directions that should never
-        # be spoken by the voice generator.
         patterns = [
             r"\[pause\]",
             r"\[music\]",
@@ -575,6 +1022,7 @@ Do not add commentary outside the JSON.
             r"\[sound effect[s]?\]",
             r"\[sfx\]",
             r"\[camera[^\]]*\]",
+            r"\[zoom[^\]]*\]",
             r"\[cut[^\]]*\]",
             r"\[fade[^\]]*\]",
             r"\[scene[^\]]*\]",
@@ -583,6 +1031,7 @@ Do not add commentary outside the JSON.
         cleaned = script
 
         for pattern in patterns:
+
             cleaned = re.sub(
                 pattern,
                 "",
@@ -590,14 +1039,11 @@ Do not add commentary outside the JSON.
                 flags=re.IGNORECASE
             )
 
-        # Remove obvious JSON artifacts if they accidentally
-        # appear inside the spoken script.
         cleaned = cleaned.replace(
             "\\n",
             "\n"
         )
 
-        # Normalize excessive whitespace.
         cleaned = re.sub(
             r"[ \t]+",
             " ",
@@ -612,9 +1058,9 @@ Do not add commentary outside the JSON.
 
         return cleaned.strip()
 
-    # ---------------------------------------------------------
+    # =========================================================
     # FALLBACK STORY
-    # ---------------------------------------------------------
+    # =========================================================
 
     def _fallback_story(
         self,
@@ -622,38 +1068,35 @@ Do not add commentary outside the JSON.
         duration_minutes: int
     ) -> Dict[str, Any]:
 
-        title = "Sofia and the Secret Empire"
+        title = "Sofia and the Hidden Empire"
 
         script = """
 Sofia thought the invitation was simply another luxury event.
 
 The black car stopped beneath the golden lights of the most
-exclusive hotel in the city. Cameras flashed as Sofia stepped
-onto the red carpet, wearing a calm expression that made everyone
-turn to look.
+exclusive hotel in the city. Sofia stepped onto the red carpet,
+but something immediately felt wrong.
 
-But she had no idea why she had been invited.
+She had been invited to a private room upstairs.
 
-Inside the hotel, everything looked perfect. Crystal chandeliers.
-Private elevators. Guards standing silently beside doors that
-ordinary guests were never allowed to enter.
+She just didn't know why.
 
-Then Sofia received a message.
+Inside, crystal chandeliers reflected across hundreds of glasses.
+Everyone was celebrating, yet Sofia noticed one man watching her
+from across the ballroom.
 
-Do not trust anyone in this building.
+Then her phone vibrated.
 
-She looked around the ballroom.
+Do not trust anyone here.
 
-Hundreds of people were laughing and celebrating, but suddenly
-Sofia noticed something strange. One of the guests was watching
-her from across the room.
+Sofia looked up.
 
-The man disappeared before she could reach him.
+The man was gone.
 
-Sofia followed.
+She followed him through a private corridor and discovered an
+elevator hidden behind an enormous painting.
 
-She passed through a private corridor and discovered an elevator
-hidden behind a painting. There was no button for the basement.
+There was no button for the basement.
 
 Instead, there was a fingerprint scanner.
 
@@ -661,14 +1104,12 @@ Sofia placed her hand against it.
 
 The doors opened.
 
-Beneath the luxury hotel was an enormous secret facility.
+Beneath the hotel was a secret facility filled with screens,
+maps and photographs of luxury properties around the world.
 
-Screens covered the walls. Maps showed private islands, banks,
-airports, and companies across the world.
+Then Sofia saw something that made her stop.
 
-Then Sofia saw her own name.
-
-She stepped closer.
+Her own name was on the main screen.
 
 A voice came from behind her.
 
@@ -676,75 +1117,67 @@ A voice came from behind her.
 
 Sofia turned.
 
-The stranger from the ballroom was standing in the doorway.
+The stranger from the ballroom stood in the doorway.
 
-He told her that the hotel belonged to a secret organization
-that had controlled powerful businesses for decades.
+He told her the hotel belonged to a secret organization that had
+controlled powerful businesses for decades.
 
-And now someone inside the organization wanted Sofia dead.
+Now someone inside the organization wanted Sofia dead.
 
-Sofia did not run.
-
-She asked one question.
+Sofia stared at him.
 
 “Why me?”
 
-The stranger looked at the screen behind her.
+He looked at the screen.
 
 “Because your family built this empire.”
 
-Sofia froze.
+Everything Sofia believed about her life suddenly changed.
 
-She had spent her entire life believing her family had simply
-been wealthy.
+Her family's wealth had never been just wealth.
 
-Now she discovered that there was an entire world hidden behind
-the luxury she knew.
+It had been a doorway into a hidden world.
 
-Suddenly the lights went out.
+Then the lights went out.
 
-An alarm began to scream.
+An alarm screamed through the facility.
 
-The stranger grabbed Sofia's hand.
+“They found us,” the stranger whispered.
 
-“They found us.”
+Sofia ran.
 
-Security doors slammed shut throughout the facility.
-
-Sofia ran through the underground corridors as footsteps
-approached from behind.
+Security doors slammed behind her as footsteps echoed through
+the underground corridors.
 
 She reached a private garage.
 
-A black car was waiting.
+A black supercar was waiting.
 
-She jumped inside and drove into the night.
+Sofia jumped inside and drove into the night.
 
-But the danger was not over.
+But then her phone rang.
 
-Her phone suddenly rang.
+The caller ID displayed her own number.
 
-It was her own number.
-
-Sofia answered.
+She answered.
 
 A woman's voice whispered,
 
 “You should never have opened that door.”
 
-Then the call ended.
+The call ended.
 
-Sofia looked at the road ahead.
+Sofia stared through the windshield.
 
 For the first time that night, she smiled.
 
-Because now she knew something the people chasing her did not.
+Now she knew where the empire was hiding.
 
-They had made one mistake.
+And she knew exactly what she had to do next.
 
-They had taught Sofia exactly where their empire was hiding.
+She turned the car around.
 
-And Sofia was coming back for it.
+Sofia was going back.
 """
 
         script = self._clean_script(script)
@@ -752,56 +1185,157 @@ And Sofia was coming back for it.
         scenes = [
             {
                 "scene_number": 1,
-                "location": "Luxury hotel entrance",
+                "scene_purpose": "Hook",
+                "location": "Ultra-luxury hotel entrance",
                 "time": "Night",
-                "action": "Sofia arrives at an exclusive event.",
-                "emotion": "Confident but curious",
-                "visual_prompt": (
-                    "Sofia arriving at an ultra-luxury hotel at night, "
-                    "black luxury car, golden lights, cinematic atmosphere"
-                ),
+                "duration_hint": "short",
+                "shot_type": "wide",
+                "sofia_visible": True,
+                "sofia_appearance": "Elegant Sofia in a luxurious evening outfit.",
+                "action": "Sofia steps from a black luxury car onto a golden-lit red carpet.",
+                "emotion": "Confident but uneasy",
+                "continuity": "Begins the mystery.",
+                "luxury_detail": "Black luxury car, golden hotel entrance, photographers.",
+                "visual_prompt": "Sofia clearly visible stepping from a black luxury car outside an ultra-luxury hotel at night, golden architectural lighting, elegant red carpet, cinematic wide composition, sophisticated evening fashion, realistic face, luxurious atmosphere.",
+                "dialogue": "",
                 "narration": "Sofia thought the invitation was simply another luxury event."
             },
             {
                 "scene_number": 2,
+                "scene_purpose": "Establish the world",
                 "location": "Luxury ballroom",
                 "time": "Night",
-                "action": "Sofia notices someone watching her.",
+                "duration_hint": "medium",
+                "shot_type": "medium",
+                "sofia_visible": True,
+                "sofia_appearance": "Same Sofia, same recognizable facial identity.",
+                "action": "Sofia studies the guests while holding a glass.",
                 "emotion": "Suspicious",
-                "visual_prompt": (
-                    "Sofia inside an elegant billionaire ballroom, "
-                    "crystal chandeliers, guests in formal clothing, "
-                    "mysterious man watching from distance"
-                ),
-                "narration": "Inside the hotel, everything looked perfect."
+                "continuity": "She notices a mysterious man.",
+                "luxury_detail": "Crystal chandeliers and elegant guests.",
+                "visual_prompt": "Sofia clearly visible in an extravagant billionaire ballroom, crystal chandeliers, elegant guests, champagne glasses, Sofia looking suspiciously across the room, cinematic medium shot, rich warm lighting.",
+                "dialogue": "",
+                "narration": "Inside, everything looked perfect. But Sofia noticed one man watching her."
             },
             {
                 "scene_number": 3,
-                "location": "Secret elevator",
+                "scene_purpose": "Discovery",
+                "location": "Hidden elevator",
                 "time": "Night",
-                "action": "Sofia discovers a hidden elevator.",
-                "emotion": "Intrigued",
-                "visual_prompt": (
-                    "Sofia discovering a hidden elevator behind an ornate "
-                    "painting inside a luxury hotel"
-                ),
-                "narration": "Sofia followed the stranger and discovered something impossible."
+                "duration_hint": "medium",
+                "shot_type": "close-up",
+                "sofia_visible": True,
+                "sofia_appearance": "Same Sofia.",
+                "action": "Sofia places her hand against a hidden fingerprint scanner.",
+                "emotion": "Shocked curiosity",
+                "continuity": "The hidden elevator leads underground.",
+                "luxury_detail": "Ornate painting and secret mechanism.",
+                "visual_prompt": "Close-up of Sofia placing her hand against a mysterious fingerprint scanner hidden behind an ornate luxury hotel painting, her shocked expression visible, dramatic cinematic lighting.",
+                "dialogue": "",
+                "narration": "Sofia placed her hand against the scanner, and the hidden doors opened."
+            },
+            {
+                "scene_number": 4,
+                "scene_purpose": "Escalation",
+                "location": "Secret underground facility",
+                "time": "Night",
+                "duration_hint": "short",
+                "shot_type": "over-the-shoulder",
+                "sofia_visible": True,
+                "sofia_appearance": "Same Sofia.",
+                "action": "Sofia discovers her name on a massive screen.",
+                "emotion": "Fear and disbelief",
+                "continuity": "She learns her family is connected to the secret empire.",
+                "luxury_detail": "Advanced screens and hidden control room.",
+                "visual_prompt": "Over-the-shoulder cinematic shot with Sofia clearly visible in the foreground staring at a huge futuristic screen displaying her name, secret underground luxury facility, dramatic blue lighting, tense atmosphere.",
+                "dialogue": "\"Why me?\"",
+                "narration": "Then Sofia saw her own name on the main screen."
+            },
+            {
+                "scene_number": 5,
+                "scene_purpose": "Twist",
+                "location": "Secret control room",
+                "time": "Night",
+                "duration_hint": "medium",
+                "shot_type": "reaction close-up",
+                "sofia_visible": True,
+                "sofia_appearance": "Same Sofia.",
+                "action": "Sofia realizes her family built the hidden empire.",
+                "emotion": "Shock",
+                "continuity": "The revelation changes everything she believed.",
+                "luxury_detail": "Global property maps and sophisticated control systems.",
+                "visual_prompt": "Cinematic close-up of Sofia reacting in disbelief inside a secret billionaire control room, glowing global maps behind her, sophisticated luxury technology, emotional realistic facial expression.",
+                "dialogue": "\"My family built this?\"",
+                "narration": "Everything Sofia believed about her family's wealth suddenly changed."
+            },
+            {
+                "scene_number": 6,
+                "scene_purpose": "Decision",
+                "location": "Underground private garage",
+                "time": "Night",
+                "duration_hint": "short",
+                "shot_type": "dynamic dramatic",
+                "sofia_visible": True,
+                "sofia_appearance": "Same Sofia.",
+                "action": "Sofia runs toward a waiting black supercar.",
+                "emotion": "Determined",
+                "continuity": "She escapes the facility.",
+                "luxury_detail": "Black supercar in a private underground garage.",
+                "visual_prompt": "Sofia running toward a black luxury supercar inside a secret underground garage, dramatic lighting, determined expression, cinematic dynamic composition, luxurious architecture, sense of urgency.",
+                "dialogue": "",
+                "narration": "Sofia knew she had seconds to escape."
+            },
+            {
+                "scene_number": 7,
+                "scene_purpose": "Climax",
+                "location": "Luxury city highway",
+                "time": "Night",
+                "duration_hint": "short",
+                "shot_type": "low-angle",
+                "sofia_visible": True,
+                "sofia_appearance": "Same Sofia.",
+                "action": "Sofia drives through the city while receiving a mysterious call.",
+                "emotion": "Focused and fearless",
+                "continuity": "The mysterious caller reveals that the danger is not over.",
+                "luxury_detail": "Supercar, illuminated skyscrapers and city lights.",
+                "visual_prompt": "Sofia clearly visible driving a black luxury supercar through a spectacular city at night, illuminated skyscrapers reflected on the windshield, intense focused expression, cinematic low-angle perspective.",
+                "dialogue": "\"Who are you?\"",
+                "narration": "Then her phone rang. The caller ID displayed her own number."
+            },
+            {
+                "scene_number": 8,
+                "scene_purpose": "Ending",
+                "location": "City overlook",
+                "time": "Night",
+                "duration_hint": "medium",
+                "shot_type": "final cinematic",
+                "sofia_visible": True,
+                "sofia_appearance": "Same Sofia, elegant and confident.",
+                "action": "Sofia looks across the city and turns the car around.",
+                "emotion": "Calm determination",
+                "continuity": "She decides to return and confront the hidden empire.",
+                "luxury_detail": "Luxury car overlooking a glowing city skyline.",
+                "visual_prompt": "Beautiful cinematic final shot of Sofia standing beside her black luxury car overlooking a breathtaking city skyline at night, elegant fashion, calm determined expression, glowing skyscrapers, premium luxury movie aesthetic.",
+                "dialogue": "\"I'm going back.\"",
+                "narration": "Now Sofia knew where the empire was hiding. And she knew exactly what she had to do next."
             }
         ]
 
-        word_count = len(script.split())
+        word_count = len(
+            script.split()
+        )
 
         return {
             "topic": topic,
             "title": title,
             "genre": "Luxury Mystery Action",
             "logline": (
-                "Sofia discovers that her family's luxury empire "
-                "hides a dangerous secret."
+                "Sofia discovers that her family's "
+                "luxury empire hides a dangerous secret."
             ),
             "hook": (
-                "Sofia enters a luxury hotel and discovers "
-                "someone has been waiting for her."
+                "Sofia enters a luxury hotel and "
+                "discovers someone has been waiting for her."
             ),
             "script": script,
             "scenes": scenes,
@@ -814,9 +1348,9 @@ And Sofia was coming back for it.
             "niche": self.niche
         }
 
-    # ---------------------------------------------------------
+    # =========================================================
     # MULTIPLE STORIES
-    # ---------------------------------------------------------
+    # =========================================================
 
     def generate_multiple(
         self,
@@ -839,9 +1373,9 @@ And Sofia was coming back for it.
         return stories
 
 
-# ---------------------------------------------------------
+# =========================================================
 # TEST
-# ---------------------------------------------------------
+# =========================================================
 
 if __name__ == "__main__":
 
@@ -869,21 +1403,41 @@ if __name__ == "__main__":
 
     if result.get("script"):
 
-        print(f"\n🎬 TITLE: {result.get('title')}")
-        print(f"🎭 GENRE: {result.get('genre')}")
-        print(f"📝 WORDS: {result.get('word_count')}")
+        print(
+            f"\n🎬 TITLE: "
+            f"{result.get('title')}"
+        )
+
+        print(
+            f"🎭 GENRE: "
+            f"{result.get('genre')}"
+        )
+
+        print(
+            f"📝 WORDS: "
+            f"{result.get('word_count')}"
+        )
+
         print(
             f"⏱️ ESTIMATED LENGTH: "
             f"{result.get('estimated_duration_min')} minutes"
         )
 
-        print("\n" + "-" * 70)
-        print(result["script"][:2000])
+        print(
+            f"🎞️ SCENES: "
+            f"{len(result.get('scenes', []))}"
+        )
+
         print("\n" + "-" * 70)
 
         print(
-            f"\n✅ Scenes generated: "
-            f"{len(result.get('scenes', []))}"
+            result["script"][:2000]
+        )
+
+        print("\n" + "-" * 70)
+
+        print(
+            "\n✅ Cinematic Sofia story generated."
         )
 
     else:
