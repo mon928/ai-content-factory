@@ -28,25 +28,64 @@ class YouTubeUploader:
         self.authenticated = False
     
     def authenticate(self, client_secrets_file: str = None) -> bool:
-        """Authenticate with YouTube API"""
-        
-        logger.info("🔐 Authenticating with YouTube...")
-        
-        # Check for API key (simple uploads) vs OAuth (advanced)
-        api_key = os.getenv("YOUTUBE_API_KEY")
-        
-        if api_key and "your_" not in api_key:
-            # Use API key for public data
+    """Authenticate with YouTube using OAuth 2.0."""
+
+    logger.info("🔐 Authenticating with YouTube...")
+
+    try:
+        import json
+        from google.oauth2.credentials import Credentials
+
+        token_json = os.getenv("YOUTUBE_TOKEN_JSON")
+
+        if token_json:
+            info = json.loads(token_json)
+
+            credentials = Credentials.from_authorized_user_info(
+                info,
+                self.SCOPES
+            )
+
+            if credentials.expired and credentials.refresh_token:
+                credentials.refresh(Request())
+
+            if not credentials.valid:
+                logger.error("❌ YouTube OAuth credentials are invalid")
+                return False
+
             self.youtube = build(
                 self.API_SERVICE_NAME,
                 self.API_VERSION,
-                developerKey=api_key
+                credentials=credentials
             )
-            logger.info("✅ Authenticated with API Key (Read-only + Upload)")
+
             self.authenticated = True
+            logger.info("✅ Authenticated with YouTube OAuth")
             return True
-        
-        logger.warning("⚠️ No valid YouTube API key found")
+
+        if client_secrets_file and Path(client_secrets_file).exists():
+            flow = InstalledAppFlow.from_client_secrets_file(
+                client_secrets_file,
+                self.SCOPES
+            )
+
+            credentials = flow.run_local_server(port=0)
+
+            self.youtube = build(
+                self.API_SERVICE_NAME,
+                self.API_VERSION,
+                credentials=credentials
+            )
+
+            self.authenticated = True
+            logger.info("✅ Authenticated with YouTube OAuth")
+            return True
+
+        logger.error("❌ No YouTube OAuth credentials found")
+        return False
+
+    except Exception as e:
+        logger.error(f"❌ YouTube authentication failed: {e}")
         return False
     
     def upload_video(self, video_path: str, metadata: Dict, 
