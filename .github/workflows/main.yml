@@ -11,6 +11,7 @@ on:
 jobs:
   create-video:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
 
     steps:
       - name: Download Sofia Luxury code
@@ -27,20 +28,20 @@ jobs:
           sudo apt-get install -y ffmpeg
           pip install -r requirements.txt
 
-      - name: Create video and upload to YouTube
+      - name: Create Sofia video
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}
-          YOUTUBE_TOKEN_JSON: ${{ secrets.YOUTUBE_TOKEN_JSON }}
           VIDEO_TOPIC: ${{ inputs.topic }}
         run: |
           python - <<'PY'
           import asyncio
+          import json
           import os
+
           from auto_scheduler import AutoScheduler
-          from platforms.youtube_uploader import YouTubeUploader
 
           async def main():
               scheduler = AutoScheduler(
@@ -55,42 +56,100 @@ jobs:
               if not result:
                   raise RuntimeError("Video creation failed.")
 
-              uploader = YouTubeUploader()
-
-              if not uploader.authenticate():
-                  raise RuntimeError("YouTube authentication failed.")
-
-              upload = uploader.upload_video(
-                  result["video"],
-                  result["seo"],
-                  privacy="private"
-              )
-
-              if not upload.get("success"):
-                  raise RuntimeError(
-                      f"YouTube upload failed: {upload}"
-                  )
-
+              video_path = result.get("video")
+              seo = result.get("seo", {})
               thumbnail = result.get("thumbnail")
 
-              if thumbnail:
-                  uploader.set_thumbnail(
-                      upload["video_id"],
-                      thumbnail
-                  )
+              if not video_path:
+                  raise RuntimeError("Video path was not returned.")
 
-              print("YouTube upload successful:")
-              print(upload["url"])
+              manifest = {
+                  "video": video_path,
+                  "seo": seo,
+                  "thumbnail": thumbnail
+              }
+
+              os.makedirs("output", exist_ok=True)
+
+              with open(
+                  "output/youtube_upload_manifest.json",
+                  "w",
+                  encoding="utf-8"
+              ) as f:
+                  json.dump(manifest, f, indent=2, ensure_ascii=False)
+
+              print("VIDEO CREATED SUCCESSFULLY")
+              print(f"Video: {video_path}")
+              print(f"Thumbnail: {thumbnail}")
+              print("Upload manifest saved.")
 
           asyncio.run(main())
           PY
 
-      - name: Upload generated videos
+      - name: Save generated files
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sofia-luxury-video
+          name: sofia-luxury-video-${{ github.run_id }}
           path: |
-            output/*.mp4
-            output/*.jpg
-            output/*.json
+            output/**/*.mp4
+            output/**/*.jpg
+            output/**/*.json
+            output/**/*.png
+            output/**/*.wav
           if-no-files-found: warn
+          retention-days: 7
+
+      - name: Upload completed video to YouTube
+        if: success()
+        env:
+          YOUTUBE_TOKEN_JSON: ${{ secrets.YOUTUBE_TOKEN_JSON }}
+        run: |
+          python - <<'PY'
+          import json
+
+          from platforms.youtube_uploader import YouTubeUploader
+
+          with open(
+              "output/youtube_upload_manifest.json",
+              "r",
+              encoding="utf-8"
+          ) as f:
+              manifest = json.load(f)
+
+          video_path = manifest["video"]
+          seo = manifest.get("seo", {})
+          thumbnail = manifest.get("thumbnail")
+
+          print("Authenticating with YouTube...")
+
+          uploader = YouTubeUploader()
+
+          if not uploader.authenticate():
+              raise RuntimeError("YouTube authentication failed.")
+
+          print("YouTube authentication successful.")
+
+          upload = uploader.upload_video(
+              video_path,
+              seo,
+              privacy="private"
+          )
+
+          if not upload.get("success"):
+              raise RuntimeError(
+                  f"YouTube upload failed: {upload}"
+              )
+
+          print("YouTube upload successful:")
+          print(upload["url"])
+
+          if thumbnail:
+              print("Uploading thumbnail...")
+              uploader.set_thumbnail(
+                  upload["video_id"],
+                  thumbnail
+              )
+
+          print("SOFIA VIDEO UPLOAD COMPLETE.")
+          PY
