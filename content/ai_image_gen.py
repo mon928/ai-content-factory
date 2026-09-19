@@ -3,7 +3,7 @@ SOFIA LUXURY STORY
 AI IMAGE GENERATOR
 
 Generates cinematic Sofia visuals using Pollinations.
-Sofia remains the central visual character.
+Includes graceful fallback when Pollinations has insufficient balance.
 """
 
 import os
@@ -15,7 +15,7 @@ from typing import List, Dict, Optional
 
 import requests
 from loguru import logger
-from PIL import Image
+from PIL import Image, ImageEnhance, ImageFilter
 
 
 # =========================================================
@@ -38,22 +38,25 @@ POLLINATIONS_EDIT_URL = (
     "https://gen.pollinations.ai/v1/images/edits"
 )
 
+# Use a lower-cost model by default.
+# It can still be overridden with POLLINATIONS_IMAGE_MODEL.
 DEFAULT_MODEL = (
-    "black-forest-labs/flux.1-kontext-pro"
+    "black-forest-labs/flux.1-schnell"
 )
-
 
 SOFIA_IDENTITY = """
 Sofia is the central character of Sofia Luxury Story.
+
 Keep Sofia visually consistent with the supplied reference image.
-Preserve her recognizable facial identity, hairstyle, skin tone,
-age appearance and overall elegant appearance.
+
+Preserve her recognizable facial identity, hairstyle,
+skin tone, age appearance and elegant overall appearance.
 
 Sofia should look like the same woman throughout the story.
 
-She can appear in different locations, clothing, environments,
-luxury settings, technology scenes, travel scenes and action
-scenes, but her identity must remain consistent.
+She can appear in different locations, clothing,
+luxury settings, technology scenes, travel scenes
+and action scenes, but her identity must remain consistent.
 """
 
 
@@ -84,6 +87,8 @@ class AIImageGenerator:
             os.getenv("POLLINATIONS_API_KEY")
             or POLLINATIONS_API_KEY
         )
+
+        self.pollinations_disabled = False
 
         logger.info(
             "🎨 Sofia AI Image Generator initialized"
@@ -128,7 +133,151 @@ class AIImageGenerator:
 
 
     # =====================================================
-    # SAVE IMAGE
+    # LOCAL SOFIA FALLBACK
+    # =====================================================
+
+    def _create_local_fallback(
+        self,
+        output_path: Path,
+        scene_number: int = 0
+    ) -> str:
+
+        """
+        Creates a local fallback image from the Sofia
+        reference image when Pollinations cannot generate
+        an image because of insufficient balance or API errors.
+
+        This allows the video pipeline to continue instead
+        of terminating the entire GitHub Action.
+        """
+
+        if not SOFIA_REFERENCE.exists():
+
+            logger.error(
+                "❌ No Sofia reference available for fallback."
+            )
+
+            return ""
+
+        try:
+
+            image = Image.open(
+                SOFIA_REFERENCE
+            ).convert("RGB")
+
+            width = 1920
+            height = 1080
+
+            # -------------------------------------------------
+            # Cover crop to 16:9
+            # -------------------------------------------------
+
+            source_ratio = image.width / image.height
+            target_ratio = width / height
+
+            if source_ratio > target_ratio:
+
+                new_width = int(
+                    image.height * target_ratio
+                )
+
+                left = (
+                    image.width - new_width
+                ) // 2
+
+                image = image.crop(
+                    (
+                        left,
+                        0,
+                        left + new_width,
+                        image.height
+                    )
+                )
+
+            else:
+
+                new_height = int(
+                    image.width / target_ratio
+                )
+
+                top = (
+                    image.height - new_height
+                ) // 2
+
+                image = image.crop(
+                    (
+                        0,
+                        top,
+                        image.width,
+                        top + new_height
+                    )
+                )
+
+            image = image.resize(
+                (width, height),
+                Image.Resampling.LANCZOS
+            )
+
+            # -------------------------------------------------
+            # Create small visual variations between scenes
+            # -------------------------------------------------
+
+            variation = scene_number % 6
+
+            if variation == 1:
+
+                image = ImageEnhance.Brightness(
+                    image
+                ).enhance(1.08)
+
+            elif variation == 2:
+
+                image = ImageEnhance.Contrast(
+                    image
+                ).enhance(1.10)
+
+            elif variation == 3:
+
+                image = ImageEnhance.Color(
+                    image
+                ).enhance(1.08)
+
+            elif variation == 4:
+
+                image = image.filter(
+                    ImageFilter.SMOOTH
+                )
+
+            elif variation == 5:
+
+                image = ImageEnhance.Sharpness(
+                    image
+                ).enhance(1.20)
+
+            image.save(
+                output_path,
+                "JPEG",
+                quality=95
+            )
+
+            logger.warning(
+                f"⚠️ Local Sofia fallback created: "
+                f"{output_path}"
+            )
+
+            return str(output_path)
+
+        except Exception as e:
+
+            logger.error(
+                f"❌ Local fallback failed: {e}"
+            )
+
+            return ""
+
+
+    # =====================================================
+    # SAVE IMAGE RESPONSE
     # =====================================================
 
     def _save_response_image(
@@ -152,15 +301,19 @@ class AIImageGenerator:
 
             if (
                 content_type.startswith("image/")
-                or response.content[:8] == b"\x89PNG\r\n\x1a\n"
-                or response.content[:2] == b"\xff\xd8"
+                or response.content[:8]
+                == b"\x89PNG\r\n\x1a\n"
+                or response.content[:2]
+                == b"\xff\xd8"
             ):
 
                 image = Image.open(
                     BytesIO(response.content)
                 )
 
-                image.convert("RGB").save(
+                image.convert(
+                    "RGB"
+                ).save(
                     output_path,
                     "JPEG",
                     quality=95
@@ -204,7 +357,9 @@ class AIImageGenerator:
                                 )
 
                                 image = Image.open(
-                                    BytesIO(image_bytes)
+                                    BytesIO(
+                                        image_bytes
+                                    )
                                 )
 
                                 image.convert(
@@ -270,7 +425,7 @@ class AIImageGenerator:
 
 
     # =====================================================
-    # TEXT-TO-IMAGE
+    # TEXT TO IMAGE
     # =====================================================
 
     def _generate_text_image(
@@ -278,14 +433,33 @@ class AIImageGenerator:
         prompt: str,
         output_path: Path,
         width: int,
-        height: int
+        height: int,
+        scene_number: int = 0
     ) -> str:
+
+        if self.pollinations_disabled:
+
+            logger.warning(
+                "⚠️ Pollinations disabled for this run."
+            )
+
+            return self._create_local_fallback(
+                output_path,
+                scene_number
+            )
+
 
         if not self.api_key:
 
             logger.warning(
                 "⚠️ POLLINATIONS_API_KEY is missing."
             )
+
+            return self._create_local_fallback(
+                output_path,
+                scene_number
+            )
+
 
         payload = {
             "prompt": prompt,
@@ -295,30 +469,77 @@ class AIImageGenerator:
             "response_format": "b64_json"
         }
 
-        response = requests.post(
-            POLLINATIONS_IMAGE_URL,
-            headers={
-                **self._headers(),
-                "Content-Type": "application/json"
-            },
-            json=payload,
-            timeout=180
-        )
 
-        if response.status_code != 200:
+        try:
 
-            logger.error(
-                f"❌ Pollinations HTTP "
-                f"{response.status_code}: "
-                f"{response.text[:500]}"
+            response = requests.post(
+                POLLINATIONS_IMAGE_URL,
+                headers={
+                    **self._headers(),
+                    "Content-Type":
+                        "application/json"
+                },
+                json=payload,
+                timeout=180
             )
 
-            return ""
 
-        return self._save_response_image(
-            response,
-            output_path
-        )
+            if response.status_code != 200:
+
+                logger.error(
+                    f"❌ Pollinations HTTP "
+                    f"{response.status_code}: "
+                    f"{response.text[:500]}"
+                )
+
+
+                # -----------------------------------------
+                # INSUFFICIENT BALANCE
+                # -----------------------------------------
+
+                if response.status_code == 402:
+
+                    logger.warning(
+                        "⚠️ Pollinations balance is "
+                        "insufficient."
+                    )
+
+                    logger.warning(
+                        "↩️ Switching to local Sofia "
+                        "fallback so video creation "
+                        "can continue."
+                    )
+
+                    self.pollinations_disabled = True
+
+                    return self._create_local_fallback(
+                        output_path,
+                        scene_number
+                    )
+
+
+                return self._create_local_fallback(
+                    output_path,
+                    scene_number
+                )
+
+
+            return self._save_response_image(
+                response,
+                output_path
+            )
+
+
+        except Exception as e:
+
+            logger.error(
+                f"❌ Pollinations request failed: {e}"
+            )
+
+            return self._create_local_fallback(
+                output_path,
+                scene_number
+            )
 
 
     # =====================================================
@@ -330,8 +551,17 @@ class AIImageGenerator:
         prompt: str,
         output_path: Path,
         width: int,
-        height: int
+        height: int,
+        scene_number: int = 0
     ) -> str:
+
+        if self.pollinations_disabled:
+
+            return self._create_local_fallback(
+                output_path,
+                scene_number
+            )
+
 
         if not SOFIA_REFERENCE.exists():
 
@@ -343,8 +573,21 @@ class AIImageGenerator:
                 prompt,
                 output_path,
                 width,
-                height
+                height,
+                scene_number
             )
+
+
+        if not self.api_key:
+
+            return self._generate_text_image(
+                prompt,
+                output_path,
+                width,
+                height,
+                scene_number
+            )
+
 
         try:
 
@@ -379,16 +622,43 @@ class AIImageGenerator:
                     timeout=240
                 )
 
+
             if response.status_code != 200:
 
                 logger.warning(
                     f"⚠️ Reference generation failed "
-                    f"with HTTP {response.status_code}."
+                    f"with HTTP "
+                    f"{response.status_code}."
                 )
 
                 logger.warning(
                     response.text[:500]
                 )
+
+
+                # -----------------------------------------
+                # INSUFFICIENT BALANCE
+                # -----------------------------------------
+
+                if response.status_code == 402:
+
+                    logger.warning(
+                        "⚠️ Pollinations balance "
+                        "insufficient."
+                    )
+
+                    logger.warning(
+                        "↩️ Switching to local Sofia "
+                        "fallback."
+                    )
+
+                    self.pollinations_disabled = True
+
+                    return self._create_local_fallback(
+                        output_path,
+                        scene_number
+                    )
+
 
                 logger.info(
                     "↩️ Falling back to text-to-image."
@@ -398,30 +668,30 @@ class AIImageGenerator:
                     prompt,
                     output_path,
                     width,
-                    height
+                    height,
+                    scene_number
                 )
+
 
             return self._save_response_image(
                 response,
                 output_path
             )
 
+
         except Exception as e:
 
             logger.warning(
-                f"⚠️ Reference image generation "
+                f"⚠️ Reference generation "
                 f"failed: {e}"
-            )
-
-            logger.info(
-                "↩️ Falling back to text-to-image."
             )
 
             return self._generate_text_image(
                 prompt,
                 output_path,
                 width,
-                height
+                height,
+                scene_number
             )
 
 
@@ -436,7 +706,8 @@ class AIImageGenerator:
         width: int = 1920,
         height: int = 1080,
         filename: Optional[str] = None,
-        use_reference: bool = True
+        use_reference: bool = True,
+        scene_number: int = 0
     ) -> str:
 
         if not filename:
@@ -446,10 +717,12 @@ class AIImageGenerator:
                 f"{int(time.time())}.jpg"
             )
 
+
         output_path = (
             self.output_dir /
             filename
         )
+
 
         style_text = {
 
@@ -493,14 +766,21 @@ Style:
 {style_text}
 
 IMPORTANT:
+
 Sofia must remain the main visual character.
+
 Keep her appearance consistent with the reference image.
+
 Do not replace Sofia with another woman.
+
 Do not change her identity.
 
 Create a polished cinematic frame suitable for
 Sofia Luxury Story.
-No text, no captions, no watermark.
+
+No text.
+No captions.
+No watermark.
 """
 
 
@@ -510,18 +790,23 @@ No text, no captions, no watermark.
         )
 
 
+        # -------------------------------------------------
         # Reference-image generation
+        # -------------------------------------------------
+
         if (
             use_reference
             and self.api_key
             and SOFIA_REFERENCE.exists()
+            and not self.pollinations_disabled
         ):
 
             result = self._generate_reference_image(
                 final_prompt,
                 output_path,
                 width,
-                height
+                height,
+                scene_number
             )
 
             if result:
@@ -534,19 +819,26 @@ No text, no captions, no watermark.
                 return result
 
 
+        # -------------------------------------------------
         # Normal generation fallback
+        # -------------------------------------------------
+
         result = self._generate_text_image(
             final_prompt,
             output_path,
             width,
-            height
+            height,
+            scene_number
         )
+
 
         if result:
 
             logger.info(
-                f"✅ Sofia scene saved: {result}"
+                f"✅ Sofia scene saved: "
+                f"{result}"
             )
+
 
         return result
 
@@ -565,15 +857,14 @@ No text, no captions, no watermark.
 
         image_paths = []
 
+
         logger.info(
             f"🎬 Generating "
             f"{len(scenes)} Sofia scenes..."
         )
 
 
-        for index, scene in enumerate(
-            scenes
-        ):
+        for index, scene in enumerate(scenes):
 
             description = scene.get(
                 "description",
@@ -583,9 +874,11 @@ No text, no captions, no watermark.
                 )
             )
 
+
             filename = (
                 f"scene_{index + 1:03d}.jpg"
             )
+
 
             path = self.generate_image(
                 prompt=description,
@@ -593,12 +886,22 @@ No text, no captions, no watermark.
                 width=width,
                 height=height,
                 filename=filename,
-                use_reference=True
+                use_reference=True,
+                scene_number=index + 1
             )
+
 
             if path:
 
                 image_paths.append(path)
+
+            else:
+
+                logger.warning(
+                    f"⚠️ Scene {index + 1} "
+                    f"could not be generated."
+                )
+
 
             if index < len(scenes) - 1:
 
@@ -610,6 +913,7 @@ No text, no captions, no watermark.
             f"{len(image_paths)}/"
             f"{len(scenes)} Sofia scenes"
         )
+
 
         return image_paths
 
@@ -634,19 +938,23 @@ Premium editorial composition.
 Elegant lighting.
 High contrast.
 Luxury technology and lifestyle atmosphere.
+
 No people.
 No text.
 No watermark.
 """
 
+
         filename = (
             "thumbnail_"
             + "".join(
-                c if c.isalnum() else "_"
+                c if c.isalnum()
+                else "_"
                 for c in topic[:40]
             )
             + ".jpg"
         )
+
 
         return self.generate_image(
             prompt=prompt,
@@ -654,7 +962,8 @@ No watermark.
             width=1920,
             height=1080,
             filename=filename,
-            use_reference=False
+            use_reference=False,
+            scene_number=0
         )
 
 
@@ -676,7 +985,9 @@ if __name__ == "__main__":
         "==========================================\n"
     )
 
+
     generator = AIImageGenerator()
+
 
     result = generator.generate_image(
         prompt=(
@@ -688,8 +999,10 @@ if __name__ == "__main__":
         width=1920,
         height=1080,
         filename="sofia_test.jpg",
-        use_reference=True
+        use_reference=True,
+        scene_number=1
     )
+
 
     if result:
 
