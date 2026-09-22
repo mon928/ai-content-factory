@@ -8,8 +8,10 @@ Creates approximately 5-minute Sofia Luxury Stories with:
 - Sofia-centered AI scripts
 - Female AI voice-over
 - Cinematic video creation
-- AI visual generation
-- Pexels stock-video support
+- Real-media visual resolution
+- Pexels stock-video/photo support
+- User library assets
+- Sofia reference image when needed
 - Background music
 - Professional transitions
 - Thumbnails
@@ -36,9 +38,9 @@ from schedule import every, repeat, run_pending
 from dotenv import load_dotenv
 
 
-# ---------------------------------------------------------
+# =========================================================
 # PATH SETUP
-# ---------------------------------------------------------
+# =========================================================
 
 BASE_DIR = Path(__file__).parent
 sys.path.insert(0, str(BASE_DIR))
@@ -46,52 +48,36 @@ sys.path.insert(0, str(BASE_DIR))
 load_dotenv()
 
 
-# ---------------------------------------------------------
+# =========================================================
 # IMPORTS
-# ---------------------------------------------------------
+# =========================================================
 
 from research.trend_finder import TrendFinder
 from content.script_generator import ScriptGenerator
 from content.voiceover_gen import VoiceoverGenerator
 from content.thumbnail_maker import ThumbnailMaker
+from content.video_creator_pro import ProfessionalVideoCreator
 from seo.seo_engine import SEOEngine
 from platforms.facebook_publisher import FacebookPublisher
 
-# ---------------------------------------------------------
-# VIDEO CREATOR
-# ---------------------------------------------------------
 
-sys.path.insert(0, str(BASE_DIR / "content"))
-
-try:
-    from video_creator_pro import ProfessionalVideoCreator
-    logger.info("✅ ProfessionalVideoCreator loaded successfully.")
-
-except Exception as e:
-    logger.exception(
-        "❌ ProfessionalVideoCreator could not be imported."
-    )
-    raise RuntimeError(
-        f"ProfessionalVideoCreator import failed: {e}"
-    ) from e
-
-# ---------------------------------------------------------
+# =========================================================
 # CONSOLE
-# ---------------------------------------------------------
+# =========================================================
 
 console = Console()
 
 
-# ---------------------------------------------------------
+# =========================================================
 # SOFIA LUXURY STORY SETTINGS
-# ---------------------------------------------------------
+# =========================================================
 
 STORY_DURATION_MINUTES = 5
 
 DEFAULT_LANGUAGE = "english"
 DEFAULT_NICHE = "luxury"
 
-SOFIA_BRAND = "Sofia Luxury"
+SOFIA_BRAND = "Sofia Luxury Story"
 
 DEFAULT_TOPIC = (
     "The latest luxury technology, lifestyle, travel, fashion, "
@@ -99,16 +85,26 @@ DEFAULT_TOPIC = (
 )
 
 
-# ---------------------------------------------------------
+# =========================================================
 # AUTO SCHEDULER
-# ---------------------------------------------------------
+# =========================================================
 
 class AutoScheduler:
     """
     Complete Sofia Luxury Story content factory.
 
-    Every generated story is designed around Sofia as the
-    central AI storyteller and creative character.
+    Each generated story is designed around Sofia as the
+    central protagonist and storyteller.
+
+    The story generator creates the narrative and scene plan.
+
+    The video creator then uses:
+        1. User library media
+        2. Sofia reference when Sofia is required
+        3. Pexels videos
+        4. Pexels photos
+
+    No separate AI image-generation step is requested here.
     """
 
     def __init__(
@@ -118,7 +114,6 @@ class AutoScheduler:
         post_to_youtube=False,
         post_to_facebook=False
     ):
-
         self.language = language
         self.niche = niche
 
@@ -126,7 +121,7 @@ class AutoScheduler:
         self.post_to_facebook = post_to_facebook
 
         # -------------------------------------------------
-        # CORE AI SERVICES
+        # CORE SERVICES
         # -------------------------------------------------
 
         self.trend_finder = TrendFinder(
@@ -187,20 +182,17 @@ class AutoScheduler:
 
         try:
             if stats_path.exists():
-
                 with open(
                     stats_path,
                     "r",
                     encoding="utf-8"
                 ) as f:
-
                     loaded = json.load(f)
 
-                    if isinstance(loaded, dict):
-                        self.stats.update(loaded)
+                if isinstance(loaded, dict):
+                    self.stats.update(loaded)
 
         except Exception as e:
-
             logger.warning(
                 f"Could not load statistics: {e}"
             )
@@ -212,7 +204,6 @@ class AutoScheduler:
         stats_path = BASE_DIR / "data" / "stats.json"
 
         try:
-
             stats_path.parent.mkdir(
                 parents=True,
                 exist_ok=True
@@ -223,7 +214,6 @@ class AutoScheduler:
                 "w",
                 encoding="utf-8"
             ) as f:
-
                 json.dump(
                     self.stats,
                     f,
@@ -232,7 +222,6 @@ class AutoScheduler:
                 )
 
         except Exception as e:
-
             logger.warning(
                 f"Could not save statistics: {e}"
             )
@@ -243,24 +232,24 @@ class AutoScheduler:
     # =====================================================
 
     def find_story_topic(self):
+        """Find a suitable topic for a Sofia Luxury Story."""
 
         console.print(
-            "[yellow]🔍 Finding a trending Sofia Luxury topic...[/yellow]"
+            "[yellow]"
+            "🔍 Finding a trending Sofia Luxury topic..."
+            "[/yellow]"
         )
 
         try:
-
             trends = self.trend_finder.find_trends(1)
 
             if trends:
-
                 topic = trends[0].get("topic")
 
                 if topic:
-                    return topic
+                    return str(topic).strip()
 
         except Exception as e:
-
             logger.warning(
                 f"Trend search failed: {e}"
             )
@@ -273,6 +262,29 @@ class AutoScheduler:
     # =====================================================
 
     async def create_content(self, topic=None):
+        """
+        Create one complete Sofia Luxury Story.
+
+        Pipeline:
+
+        Topic
+          ↓
+        Sofia story script
+          ↓
+        Scene plan
+          ↓
+        Female voice-over
+          ↓
+        Real-media cinematic video
+          ↓
+        Thumbnail
+          ↓
+        SEO metadata
+          ↓
+        History
+          ↓
+        Return complete result
+        """
 
         timestamp = datetime.now().strftime(
             "%Y%m%d_%H%M%S"
@@ -293,18 +305,16 @@ class AutoScheduler:
 
         try:
 
-            # -------------------------------------------------
+            # =================================================
             # 1. FIND TOPIC
-            # -------------------------------------------------
+            # =================================================
 
             if not topic:
-
                 topic = self.find_story_topic()
 
             topic = str(topic).strip()
 
             if not topic:
-
                 topic = DEFAULT_TOPIC
 
             console.print(
@@ -313,9 +323,9 @@ class AutoScheduler:
             )
 
 
-            # -------------------------------------------------
+            # =================================================
             # 2. GENERATE SOFIA STORY SCRIPT
-            # -------------------------------------------------
+            # =================================================
 
             console.print(
                 "[yellow]"
@@ -334,7 +344,6 @@ class AutoScheduler:
             )
 
             if not script_data:
-
                 raise RuntimeError(
                     "Script generator returned no data."
                 )
@@ -345,19 +354,29 @@ class AutoScheduler:
             )
 
             if not script_text.strip():
-
                 raise RuntimeError(
                     "Generated script is empty."
                 )
 
+            scenes = script_data.get(
+                "scenes",
+                []
+            )
+
+            if not isinstance(scenes, list):
+                scenes = []
+
             console.print(
-                "[green]✅ Sofia story script created.[/green]"
+                "[green]"
+                f"✅ Sofia story script created "
+                f"with {len(scenes)} scene plan entries."
+                "[/green]"
             )
 
 
-            # -------------------------------------------------
+            # =================================================
             # 3. CREATE VOICEOVER
-            # -------------------------------------------------
+            # =================================================
 
             console.print(
                 "[yellow]"
@@ -373,8 +392,8 @@ class AutoScheduler:
             )
 
             voice_path = (
-                output_dir /
-                f"sofia_story_voice_{timestamp}.mp3"
+                output_dir
+                / f"sofia_story_voice_{timestamp}.mp3"
             )
 
             await self.voice_gen.generate(
@@ -383,7 +402,6 @@ class AutoScheduler:
             )
 
             if not voice_path.exists():
-
                 raise RuntimeError(
                     "Voice-over file was not created."
                 )
@@ -393,9 +411,9 @@ class AutoScheduler:
             )
 
 
-            # -------------------------------------------------
+            # =================================================
             # 4. CREATE CINEMATIC VIDEO
-            # -------------------------------------------------
+            # =================================================
 
             console.print(
                 "[yellow]"
@@ -404,8 +422,8 @@ class AutoScheduler:
             )
 
             video_path = (
-                output_dir /
-                f"sofia_luxury_story_{timestamp}.mp4"
+                output_dir
+                / f"sofia_luxury_story_{timestamp}.mp4"
             )
 
             self.video_creator.create_professional_video(
@@ -414,24 +432,25 @@ class AutoScheduler:
                 script_text=script_text,
                 niche=self.niche,
                 add_music=True,
-             output_path=str(video_path),
-scenes=script_data.get("scenes", [])
+                output_path=str(video_path),
+                scenes=scenes
             )
 
             if not video_path.exists():
-
                 raise RuntimeError(
                     "Video file was not created."
                 )
 
             console.print(
-                "[green]✅ Sofia Luxury Story video created.[/green]"
+                "[green]"
+                "✅ Sofia Luxury Story video created."
+                "[/green]"
             )
 
 
-            # -------------------------------------------------
+            # =================================================
             # 5. CREATE THUMBNAIL
-            # -------------------------------------------------
+            # =================================================
 
             console.print(
                 "[yellow]"
@@ -444,14 +463,21 @@ scenes=script_data.get("scenes", [])
                 niche=self.niche
             )
 
-            console.print(
-                "[green]✅ Thumbnail created.[/green]"
-            )
+            if thumb_path:
+                console.print(
+                    "[green]✅ Thumbnail created.[/green]"
+                )
+            else:
+                console.print(
+                    "[yellow]"
+                    "⚠️ Thumbnail was not returned."
+                    "[/yellow]"
+                )
 
 
-            # -------------------------------------------------
+            # =================================================
             # 6. GENERATE SEO
-            # -------------------------------------------------
+            # =================================================
 
             console.print(
                 "[yellow]"
@@ -464,19 +490,22 @@ scenes=script_data.get("scenes", [])
                 script_text
             )
 
+            if not isinstance(seo_data, dict):
+                seo_data = {}
+
             console.print(
                 "[green]✅ SEO package created.[/green]"
             )
 
 
-            # -------------------------------------------------
+            # =================================================
             # 7. SAVE STORY HISTORY
-            # -------------------------------------------------
+            # =================================================
 
             history_dir = (
-                BASE_DIR /
-                "data" /
-                "history"
+                BASE_DIR
+                / "data"
+                / "history"
             )
 
             history_dir.mkdir(
@@ -493,15 +522,16 @@ scenes=script_data.get("scenes", [])
                 "niche": self.niche,
                 "topic": topic,
                 "script": script_text,
+                "scenes": scenes,
                 "video": str(video_path),
                 "voiceover": str(voice_path),
-                "thumbnail": str(thumb_path),
+                "thumbnail": str(thumb_path) if thumb_path else None,
                 "seo": seo_data
             }
 
             history_file = (
-                history_dir /
-                f"sofia_story_{timestamp}.json"
+                history_dir
+                / f"sofia_story_{timestamp}.json"
             )
 
             with open(
@@ -509,7 +539,6 @@ scenes=script_data.get("scenes", [])
                 "w",
                 encoding="utf-8"
             ) as f:
-
                 json.dump(
                     result,
                     f,
@@ -519,20 +548,25 @@ scenes=script_data.get("scenes", [])
                 )
 
 
-            # -------------------------------------------------
+            # =================================================
             # 8. UPDATE STATISTICS
-            # -------------------------------------------------
+            # =================================================
 
-            self.stats["videos_created"] += 1
+            self.stats["videos_created"] = (
+                self.stats.get(
+                    "videos_created",
+                    0
+                ) + 1
+            )
 
             self.stats["last_run"] = timestamp
 
             self._save_stats()
 
 
-            # -------------------------------------------------
+            # =================================================
             # 9. SUCCESS
-            # -------------------------------------------------
+            # =================================================
 
             console.print(
                 Panel(
@@ -540,7 +574,8 @@ scenes=script_data.get("scenes", [])
                     "✅ SOFIA LUXURY STORY CREATED!"
                     "[/bold green]\n\n"
                     f"🎬 Topic: {topic}\n"
-                    f"⏱️ Target: {STORY_DURATION_MINUTES} minutes\n"
+                    f"⏱️ Target: "
+                    f"{STORY_DURATION_MINUTES} minutes\n"
                     f"🎙️ Voice: {voice_path}\n"
                     f"🎥 Video: {video_path}\n"
                     f"🖼️ Thumbnail: {thumb_path}\n"
@@ -553,7 +588,12 @@ scenes=script_data.get("scenes", [])
 
         except Exception as e:
 
-            self.stats["errors"] += 1
+            self.stats["errors"] = (
+                self.stats.get(
+                    "errors",
+                    0
+                ) + 1
+            )
 
             self._save_stats()
 
@@ -670,7 +710,6 @@ scenes=script_data.get("scenes", [])
             "10:00"
         )
 
-
         @repeat(
             every().day.at(post_time)
         )
@@ -679,7 +718,6 @@ scenes=script_data.get("scenes", [])
             asyncio.run(
                 self.create_content()
             )
-
 
         console.print(
             f"⏰ Daily story creation: {post_time}"
@@ -724,7 +762,6 @@ async def main():
 
     scheduler.show_status()
 
-
     while True:
 
         console.print(
@@ -739,7 +776,6 @@ async def main():
             "👉 "
         ).strip()
 
-
         if choice == "1":
 
             topic = input(
@@ -751,16 +787,13 @@ async def main():
                 topic if topic else None
             )
 
-
         elif choice == "2":
 
             scheduler.run_forever()
 
-
         elif choice == "3":
 
             scheduler.show_status()
-
 
         elif choice == "4":
 
@@ -771,7 +804,6 @@ async def main():
             )
 
             break
-
 
         else:
 
