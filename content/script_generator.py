@@ -4,6 +4,11 @@ CINEMATIC 5-MINUTE STORY GENERATOR
 
 Creates original Sofia-centered vertical mini-movies.
 
+Sofia remains the central protagonist throughout the story.
+Most scenes show Sofia, while selected scenes may use
+cinematic supporting B-roll such as luxury cars, jets,
+houses, hotels, technology, locations and important objects.
+
 Designed for:
 - Luxury drama
 - Romance
@@ -22,8 +27,9 @@ The generator creates:
 - Approximately 700-800 spoken words
 - Exactly 8 major story scenes
 - Strong story progression
-- Sofia visible in every scene
-- Different visual compositions
+- Sofia as the central protagonist
+- Selective Sofia visibility
+- Cinematic supporting B-roll
 - Luxury environments
 - Emotional progression
 - Mid-story twist
@@ -50,15 +56,10 @@ except ImportError:
     import groq
     Groq = groq.Groq
 
-
 load_dotenv()
 
 
 class ScriptGenerator:
-
-    # =========================================================
-    # CORE SETTINGS
-    # =========================================================
 
     MODEL = "openai/gpt-oss-120b"
 
@@ -71,10 +72,6 @@ class ScriptGenerator:
     WORDS_PER_MINUTE = 150.0
 
     MAX_TOKENS = 6000
-
-    # =========================================================
-    # INITIALIZATION
-    # =========================================================
 
     def __init__(
         self,
@@ -123,9 +120,7 @@ class ScriptGenerator:
 
         try:
 
-            raw = self._request_story(
-                prompt
-            )
+            raw = self._request_story(prompt)
 
             result = self._parse_response(
                 raw,
@@ -133,15 +128,7 @@ class ScriptGenerator:
                 duration_minutes
             )
 
-            # -------------------------------------------------
-            # If the model returned too few spoken words,
-            # ask Groq once to repair/expand the story.
-            # -------------------------------------------------
-
-            word_count = result.get(
-                "word_count",
-                0
-            )
+            word_count = result.get("word_count", 0)
 
             if (
                 word_count < self.TARGET_WORDS_MIN
@@ -161,10 +148,6 @@ class ScriptGenerator:
 
                 if repaired:
                     result = repaired
-
-            # -------------------------------------------------
-            # Final normalization.
-            # -------------------------------------------------
 
             result = self._finalize_result(
                 result,
@@ -255,34 +238,42 @@ ABSOLUTE STORY RULES
 
 1. Sofia is the protagonist.
 
-2. Sofia must be visible in every scene.
+2. Sofia must be central to the entire story, but Sofia
+does NOT need to be visible in every scene.
 
-3. Sofia must perform meaningful actions.
+3. Most major character scenes should show Sofia clearly.
 
-4. Sofia must have a clear goal.
+4. 2-3 scenes may use supporting cinematic B-roll
+without Sofia visible when that visual better tells
+the story.
 
-5. Sofia must face a problem.
+5. Sofia must perform meaningful actions whenever she
+is visible.
 
-6. Sofia must have something important to lose.
+6. Sofia must have a clear goal.
 
-7. Sofia must discover something.
+7. Sofia must face a problem.
 
-8. Sofia must make a difficult decision.
+8. Sofia must have something important to lose.
 
-9. Sofia must personally drive the climax.
+9. Sofia must discover something.
 
-10. The ending must come from Sofia's actions.
+10. Sofia must make a difficult decision.
 
-11. Every scene must connect logically to the next.
+11. Sofia must personally drive the climax.
 
-12. Do not create eight unrelated luxury scenes.
+12. The ending must come from Sofia's actions.
 
-13. Do not repeat the same event in different words.
+13. Every scene must connect logically to the next.
 
-14. Do not repeatedly describe Sofia standing,
+14. Do not create eight unrelated luxury scenes.
+
+15. Do not repeat the same event in different words.
+
+16. Do not repeatedly describe Sofia standing,
 smiling, walking or looking beautiful.
 
-15. Sofia should interact with:
+17. Sofia should interact with:
 - people
 - vehicles
 - technology
@@ -291,15 +282,18 @@ smiling, walking or looking beautiful.
 - locations
 - important story props
 
-16. Keep Sofia's facial identity consistent.
+18. Keep Sofia's facial identity consistent.
 
-17. Clothing changes must have a story reason.
+19. Clothing changes must have a story reason.
 
-18. Important objects should remain consistent.
+20. Important objects should remain consistent.
 
-19. Supporting characters must have consistent roles.
+21. Supporting characters must have consistent roles.
 
-20. The story must feel like a real short movie.
+22. Supporting B-roll must clearly connect to
+Sofia's story.
+
+23. The story must feel like a real short movie.
 
 =========================================================
 STORY ARC
@@ -344,7 +338,7 @@ Sofia personally confronts the main problem.
 Scene 8:
 ENDING.
 
-Give emotional payoff, resolution or a strong
+Give emotional payoff, resolution or strong
 cliffhanger.
 
 =========================================================
@@ -367,9 +361,27 @@ tracking-style composition
 point of view
 environmental detail
 
-Sofia must remain visually recognizable.
+When Sofia is visible, keep her facial identity consistent.
 
-Every visual prompt must contain:
+When Sofia is NOT visible, do NOT mention Sofia in
+the visual prompt.
+
+B-roll scenes should focus on the actual visual subject,
+such as:
+
+luxury car
+private jet
+luxury house
+hotel
+yacht
+city
+security vehicle
+technology
+important object
+architecture
+environment
+
+Every Sofia scene visual prompt should contain:
 
 - Sofia
 - Sofia's action
@@ -381,10 +393,23 @@ Every visual prompt must contain:
 - atmosphere
 - luxury detail when appropriate
 
+Every B-roll visual prompt should contain:
+
+- primary visual subject
+- action or environmental activity
+- location
+- lighting
+- camera framing
+- important objects
+- atmosphere
+- luxury detail when appropriate
+
 Do not make every scene look like the same photograph.
 
-The visual prompt should describe what is actually
+The visual prompt must describe what is actually
 happening in the story.
+
+B-roll must never be random filler.
 
 =========================================================
 LUXURY WORLD
@@ -599,21 +624,97 @@ keep it consistent until a story reason changes it.
 If another character appears,
 keep that character's role consistent.
 
+Important vehicles and objects should remain consistent.
+
 =========================================================
 VISUAL CONTINUITY
 =========================================================
 
-Sofia must be visible in EVERY scene.
+Sofia is the central protagonist throughout the story.
 
-Every scene must contain:
+Sofia should appear in MOST scenes.
+
+Allow 2-3 scenes to be supporting cinematic B-roll
+without Sofia when the story benefits from showing:
+
+- a luxury car
+- private jet
+- luxury house
+- hotel
+- yacht
+- city
+- security vehicles
+- important objects
+- technology
+- architecture
+- environment
+
+Every scene MUST include:
 
 "sofia_visible": true
 
-Describe Sofia consistently.
+OR
 
-Every visual prompt must explicitly mention Sofia.
+"sofia_visible": false
+
+If "sofia_visible" is true:
+
+- Sofia must be clearly visible.
+- The visual prompt must explicitly mention Sofia.
+- The action should describe what Sofia is doing.
+- The emotion should describe Sofia's emotional state.
+
+If "sofia_visible" is false:
+
+- Do NOT mention Sofia in the visual prompt.
+- Focus on the supporting visual subject.
+- The scene must still advance Sofia's story.
+- The action should describe what the camera sees.
+- The scene should be useful as cinematic B-roll.
 
 Every scene should have a different primary shot type.
+
+Recommended structure:
+
+Scene 1: Sofia + establishing luxury environment
+Scene 2: Sofia + character interaction
+Scene 3: supporting B-roll or Sofia + discovery
+Scene 4: Sofia + investigation
+Scene 5: supporting B-roll or Sofia + twist
+Scene 6: Sofia + decision
+Scene 7: Sofia + climax/action
+Scene 8: Sofia + final environment
+
+Do not force every scene to show Sofia.
+
+=========================================================
+MEDIA DIRECTION
+=========================================================
+
+When a scene is suitable for a real supporting image
+or video, describe the visual subject clearly.
+
+Examples:
+
+A private jet waiting on a luxury airport runway.
+
+A black supercar parked outside a modern billionaire
+estate.
+
+A luxury mansion glowing at night.
+
+A security convoy moving through an illuminated city.
+
+A private elevator opening inside a luxury hotel.
+
+A mysterious object resting on a marble table.
+
+Do not mention AI image generation.
+
+Do not ask for generated images.
+
+The visual description should work with real photographs
+and real stock video.
 
 =========================================================
 SCENE PACING
@@ -647,11 +748,11 @@ Return exactly this structure:
       "shot_type": "wide",
       "sofia_visible": true,
       "sofia_appearance": "Consistent description of Sofia",
-      "action": "Meaningful action Sofia performs",
-      "emotion": "Sofia's emotional state",
+      "action": "Meaningful action or visual activity",
+      "emotion": "Sofia's emotional state when visible",
       "continuity": "How this connects to the story",
       "luxury_detail": "Important environmental detail",
-      "visual_prompt": "Detailed cinematic image prompt",
+      "visual_prompt": "Detailed cinematic visual prompt",
       "dialogue": "Short natural dialogue",
       "narration": "Story narration"
     }}
@@ -662,7 +763,9 @@ Return exactly this structure:
 FINAL RULES:
 
 - Exactly 8 scenes.
-- Sofia visible in all 8.
+- Sofia remains the central protagonist.
+- Most scenes should contain Sofia.
+- 2-3 scenes may be supporting B-roll.
 - Approximately 700-800 spoken words.
 - One connected story.
 - Strong opening.
@@ -672,6 +775,7 @@ FINAL RULES:
 - Sofia makes the key decision.
 - Sofia drives the climax.
 - Memorable ending.
+- B-roll must advance the story.
 - No markdown.
 - No commentary outside JSON.
 """
@@ -722,13 +826,9 @@ FINAL RULES:
         duration_minutes: int
     ) -> Dict[str, Any]:
 
-        cleaned = self._clean_json_text(
-            raw
-        )
+        cleaned = self._clean_json_text(raw)
 
-        data = self._load_json(
-            cleaned
-        )
+        data = self._load_json(cleaned)
 
         if not isinstance(data, dict):
 
@@ -777,9 +877,7 @@ FINAL RULES:
         if not isinstance(raw_scenes, list):
             raw_scenes = []
 
-        scenes = self._normalize_scenes(
-            raw_scenes
-        )
+        scenes = self._normalize_scenes(raw_scenes)
 
         script = self._clean_script(
             self._safe_text(
@@ -790,20 +888,11 @@ FINAL RULES:
             )
         )
 
-        # -----------------------------------------------------
-        # Build the spoken script from scenes if the model
-        # returned an unusable script field.
-        # -----------------------------------------------------
-
         if len(script.split()) < 250:
 
             script = self._build_script_from_scenes(
                 scenes
             )
-
-        # -----------------------------------------------------
-        # If the model completely failed, use fallback.
-        # -----------------------------------------------------
 
         if len(script.split()) < 250:
 
@@ -888,18 +977,13 @@ FINAL RULES:
         if start < 0 or end <= start:
             return None
 
-        possible_json = text[
-            start:end + 1
-        ]
+        possible_json = text[start:end + 1]
 
         try:
-            return json.loads(
-                possible_json
-            )
+            return json.loads(possible_json)
 
         except json.JSONDecodeError:
 
-            # Try removing common control characters.
             possible_json = re.sub(
                 r"[\x00-\x08\x0b\x0c\x0e-\x1f]",
                 "",
@@ -907,9 +991,7 @@ FINAL RULES:
             )
 
             try:
-                return json.loads(
-                    possible_json
-                )
+                return json.loads(possible_json)
 
             except json.JSONDecodeError:
                 return None
@@ -958,9 +1040,7 @@ FINAL RULES:
             )
 
             if not shot_type:
-                shot_type = shot_types[
-                    index
-                ]
+                shot_type = shot_types[index]
 
             sofia_appearance = self._safe_text(
                 scene.get(
@@ -985,8 +1065,8 @@ FINAL RULES:
 
             if not action:
                 action = (
-                    "Sofia takes meaningful action "
-                    "that advances the story."
+                    "The visual action advances "
+                    "Sofia's story."
                 )
 
             emotion = self._safe_text(
@@ -1027,39 +1107,95 @@ FINAL RULES:
             )
 
             # -------------------------------------------------
-            # Force Sofia into every visual prompt.
+            # Respect the model's scene-level Sofia decision.
             # -------------------------------------------------
 
-            if not re.search(
-                r"\bsofia\b",
-                visual_prompt,
-                flags=re.IGNORECASE
+            sofia_visible_raw = scene.get(
+                "sofia_visible",
+                True
+            )
+
+            if isinstance(
+                sofia_visible_raw,
+                str
             ):
 
-                visual_prompt = (
-                    "Sofia is clearly visible as the "
-                    "central protagonist. "
-                    + visual_prompt
+                sofia_visible = (
+                    sofia_visible_raw.strip().lower()
+                    not in {
+                        "false",
+                        "no",
+                        "0",
+                        "none",
+                        "off"
+                    }
+                )
+
+            else:
+
+                sofia_visible = bool(
+                    sofia_visible_raw
                 )
 
             # -------------------------------------------------
-            # Strengthen empty visual prompts.
+            # Only add Sofia when this is a Sofia scene.
+            # -------------------------------------------------
+
+            if sofia_visible:
+
+                if not re.search(
+                    r"\bsofia\b",
+                    visual_prompt,
+                    flags=re.IGNORECASE
+                ):
+
+                    visual_prompt = (
+                        "Sofia is clearly visible as the "
+                        "central protagonist. "
+                        + visual_prompt
+                    )
+
+            # -------------------------------------------------
+            # Build a useful visual prompt if missing.
             # -------------------------------------------------
 
             if len(visual_prompt) < 40:
 
-                visual_prompt = (
-                    f"Cinematic {shot_type} of Sofia "
-                    f"in {location} during {time}. "
-                    f"Sofia is {action} while feeling "
-                    f"{emotion}. "
-                    f"{sofia_appearance}. "
-                    "Photorealistic cinematic lighting, "
-                    "realistic environment, detailed "
-                    "luxury production design, natural "
-                    "human expression, premium movie "
-                    "aesthetic, Sofia clearly visible."
-                )
+                if sofia_visible:
+
+                    visual_prompt = (
+                        f"Cinematic {shot_type} of Sofia "
+                        f"in {location} during {time}. "
+                        f"Sofia is {action} while feeling "
+                        f"{emotion}. "
+                        f"{sofia_appearance}. "
+                        "Photorealistic cinematic lighting, "
+                        "realistic environment, detailed "
+                        "luxury production design, natural "
+                        "human expression, premium movie "
+                        "aesthetic, Sofia clearly visible."
+                    )
+
+                else:
+
+                    luxury_detail = self._safe_text(
+                        scene.get(
+                            "luxury_detail",
+                            ""
+                        )
+                    )
+
+                    visual_prompt = (
+                        f"Cinematic {shot_type} of "
+                        f"{location} during {time}. "
+                        f"{action}. "
+                        f"{luxury_detail}. "
+                        "Photorealistic cinematic lighting, "
+                        "realistic environment, detailed "
+                        "luxury production design, "
+                        "premium movie aesthetic, "
+                        "cinematic depth and atmosphere."
+                    )
 
             normalized_scene = {
                 "scene_number": scene_number,
@@ -1084,7 +1220,7 @@ FINAL RULES:
 
                 "shot_type": shot_type,
 
-                "sofia_visible": True,
+                "sofia_visible": sofia_visible,
 
                 "sofia_appearance":
                     sofia_appearance,
@@ -1133,25 +1269,16 @@ FINAL RULES:
                 normalized_scene
             )
 
-        # -----------------------------------------------------
-        # If Groq returns fewer than 8 scenes, fill missing
-        # scenes with purposeful structural scenes rather
-        # than blindly duplicating one image/story beat.
-        # -----------------------------------------------------
-
+        # Fill missing scenes.
         while len(normalized) < self.SCENE_COUNT:
 
             index = len(normalized)
 
             normalized.append(
-                self._make_structural_scene(
-                    index
-                )
+                self._make_structural_scene(index)
             )
 
-        return normalized[
-            :self.SCENE_COUNT
-        ]
+        return normalized[:self.SCENE_COUNT]
 
     # =========================================================
     # STRUCTURAL SCENE FALLBACK
@@ -1178,9 +1305,9 @@ FINAL RULES:
         actions = [
             "Sofia enters the location and notices something unusual.",
             "Sofia examines the surroundings while searching for answers.",
-            "Sofia discovers an important clue.",
+            "A mysterious luxury vehicle or important object reveals a clue connected to Sofia.",
             "Sofia follows the clue into a more dangerous situation.",
-            "Sofia realizes that someone has been hiding the truth from her.",
+            "A hidden luxury location reveals information about Sofia's story.",
             "Sofia makes a difficult decision and takes control.",
             "Sofia confronts the danger directly.",
             "Sofia looks toward the future after everything has changed."
@@ -1201,51 +1328,86 @@ FINAL RULES:
             "ultra-luxury hotel entrance",
             "private penthouse",
             "exclusive luxury lounge",
-            "hidden corridor",
+            "hidden luxury corridor",
             "secret private facility",
             "underground luxury garage",
             "city skyline at night",
             "luxury rooftop overlooking the city"
         ]
 
+        # Most structural scenes show Sofia.
+        # Scene 3 or 5 can be supporting B-roll.
+        sofia_visible = index not in {2, 4}
+
+        if sofia_visible:
+
+            visual_prompt = (
+                f"Cinematic {shot_types[index]} of Sofia "
+                f"in {locations[index]} at night. "
+                f"Sofia is clearly visible while "
+                f"{actions[index]} "
+                f"Her expression shows {emotions[index]}. "
+                "Photorealistic realistic skin, "
+                "cinematic lighting, detailed luxury "
+                "environment, natural expression, "
+                "premium movie production."
+            )
+
+        else:
+
+            visual_prompt = (
+                f"Cinematic {shot_types[index]} of "
+                f"{locations[index]} at night. "
+                f"{actions[index]} "
+                "Focus on the environment, important "
+                "objects and cinematic atmosphere. "
+                "Photorealistic cinematic lighting, "
+                "detailed luxury production design, "
+                "premium movie aesthetic."
+            )
+
         return {
             "scene_number": scene_number,
+
             "scene_purpose":
                 "Structural continuation of Sofia's story.",
+
             "location":
                 locations[index],
+
             "time":
                 "Night",
+
             "duration_hint":
                 "medium",
+
             "shot_type":
                 shot_types[index],
+
             "sofia_visible":
-                True,
+                sofia_visible,
+
             "sofia_appearance":
                 "Sofia, the same recognizable woman with consistent facial identity.",
+
             "action":
                 actions[index],
+
             "emotion":
                 emotions[index],
+
             "continuity":
                 "This scene continues directly from the previous story event.",
+
             "luxury_detail":
                 "Elegant architecture, premium materials and cinematic luxury production design.",
+
             "visual_prompt":
-                (
-                    f"Cinematic {shot_types[index]} of Sofia "
-                    f"in {locations[index]} at night. "
-                    f"Sofia is clearly visible while "
-                    f"{actions[index]} "
-                    f"Her expression shows {emotions[index]}. "
-                    "Photorealistic realistic skin, "
-                    "cinematic lighting, detailed luxury "
-                    "environment, natural expression, "
-                    "premium movie production."
-                ),
+                visual_prompt,
+
             "dialogue":
                 "",
+
             "narration":
                 ""
         }
@@ -1278,18 +1440,12 @@ FINAL RULES:
             )
 
             if narration:
-                parts.append(
-                    narration
-                )
+                parts.append(narration)
 
             if dialogue:
-                parts.append(
-                    dialogue
-                )
+                parts.append(dialogue)
 
-        return "\n\n".join(
-            parts
-        ).strip()
+        return "\n\n".join(parts).strip()
 
     # =========================================================
     # SCRIPT CLEANER
@@ -1303,9 +1459,7 @@ FINAL RULES:
         if not script:
             return ""
 
-        cleaned = str(
-            script
-        )
+        cleaned = str(script)
 
         patterns = [
             r"\[pause[^\]]*\]",
@@ -1423,6 +1577,28 @@ Sofia must remain the protagonist.
 
 Create exactly 8 connected scenes.
 
+Most scenes should contain Sofia.
+
+Allow 2-3 scenes to use supporting cinematic
+B-roll without Sofia when useful.
+
+B-roll may show:
+
+- luxury cars
+- private jets
+- luxury houses
+- hotels
+- yachts
+- cities
+- security vehicles
+- technology
+- important objects
+- architecture
+- environments
+
+When sofia_visible is false, do NOT mention Sofia
+inside the visual_prompt.
+
 Do not create unrelated scenes.
 
 Return ONLY valid JSON using:
@@ -1459,18 +1635,11 @@ Return ONLY valid JSON using:
                 repair_prompt
             )
 
-            cleaned = self._clean_json_text(
-                raw
-            )
+            cleaned = self._clean_json_text(raw)
 
-            data = self._load_json(
-                cleaned
-            )
+            data = self._load_json(cleaned)
 
-            if not isinstance(
-                data,
-                dict
-            ):
+            if not isinstance(data, dict):
                 return None
 
             scenes = self._normalize_scenes(
@@ -1500,6 +1669,7 @@ Return ONLY valid JSON using:
 
             return {
                 "topic": topic,
+
                 "title": self._safe_text(
                     data.get(
                         "title",
@@ -1509,6 +1679,7 @@ Return ONLY valid JSON using:
                         )
                     )
                 ),
+
                 "genre": self._safe_text(
                     data.get(
                         "genre",
@@ -1518,6 +1689,7 @@ Return ONLY valid JSON using:
                         )
                     )
                 ),
+
                 "logline": self._safe_text(
                     data.get(
                         "logline",
@@ -1527,6 +1699,7 @@ Return ONLY valid JSON using:
                         )
                     )
                 ),
+
                 "hook": self._safe_text(
                     data.get(
                         "hook",
@@ -1536,17 +1709,23 @@ Return ONLY valid JSON using:
                         )
                     )
                 ),
+
                 "script": script,
+
                 "scenes": scenes,
+
                 "word_count": len(
                     script.split()
                 ),
+
                 "estimated_duration_min": round(
                     len(script.split())
                     / self.WORDS_PER_MINUTE,
                     1
                 ),
+
                 "language": self.language,
+
                 "niche": self.niche
             }
 
@@ -1569,10 +1748,8 @@ Return ONLY valid JSON using:
         duration_minutes: int
     ) -> Dict[str, Any]:
 
-        if not isinstance(
-            result,
-            dict
-        ):
+        if not isinstance(result, dict):
+
             return self._fallback_story(
                 topic,
                 duration_minutes
@@ -1583,15 +1760,10 @@ Return ONLY valid JSON using:
             []
         )
 
-        if not isinstance(
-            scenes,
-            list
-        ):
+        if not isinstance(scenes, list):
             scenes = []
 
-        scenes = self._normalize_scenes(
-            scenes
-        )
+        scenes = self._normalize_scenes(scenes)
 
         script = self._clean_script(
             result.get(
@@ -1613,67 +1785,54 @@ Return ONLY valid JSON using:
                 duration_minutes
             )
 
-        word_count = len(
-            script.split()
-        )
+        word_count = len(script.split())
 
         return {
-            "topic":
-                topic,
+            "topic": topic,
 
-            "title":
-                self._safe_text(
-                    result.get(
-                        "title",
-                        "Sofia Luxury Story"
-                    )
-                ),
+            "title": self._safe_text(
+                result.get(
+                    "title",
+                    "Sofia Luxury Story"
+                )
+            ),
 
-            "genre":
-                self._safe_text(
-                    result.get(
-                        "genre",
-                        "Luxury Drama"
-                    )
-                ),
+            "genre": self._safe_text(
+                result.get(
+                    "genre",
+                    "Luxury Drama"
+                )
+            ),
 
-            "logline":
-                self._safe_text(
-                    result.get(
-                        "logline",
-                        ""
-                    )
-                ),
+            "logline": self._safe_text(
+                result.get(
+                    "logline",
+                    ""
+                )
+            ),
 
-            "hook":
-                self._safe_text(
-                    result.get(
-                        "hook",
-                        ""
-                    )
-                ),
+            "hook": self._safe_text(
+                result.get(
+                    "hook",
+                    ""
+                )
+            ),
 
-            "script":
-                script,
+            "script": script,
 
-            "scenes":
-                scenes,
+            "scenes": scenes,
 
-            "word_count":
-                word_count,
+            "word_count": word_count,
 
-            "estimated_duration_min":
-                round(
-                    word_count
-                    / self.WORDS_PER_MINUTE,
-                    1
-                ),
+            "estimated_duration_min": round(
+                word_count
+                / self.WORDS_PER_MINUTE,
+                1
+            ),
 
-            "language":
-                self.language,
+            "language": self.language,
 
-            "niche":
-                self.niche
+            "niche": self.niche
         }
 
     # =========================================================
@@ -1874,9 +2033,7 @@ Sofia had entered the hidden world by accident.
 But she would return to it by choice.
 """
 
-        script = self._clean_script(
-            script
-        )
+        script = self._clean_script(script)
 
         scenes = [
             {
@@ -2017,9 +2174,7 @@ But she would return to it by choice.
             }
         ]
 
-        word_count = len(
-            script.split()
-        )
+        word_count = len(script.split())
 
         return {
             "topic": topic,
@@ -2037,8 +2192,7 @@ But she would return to it by choice.
             "scenes": scenes,
             "word_count": word_count,
             "estimated_duration_min": round(
-                word_count
-                / self.WORDS_PER_MINUTE,
+                word_count / self.WORDS_PER_MINUTE,
                 1
             ),
             "language": self.language,
@@ -2066,13 +2220,9 @@ But she would return to it by choice.
                     duration_minutes=5
                 )
 
-                if (
-                    story
-                    and not story.get("error")
-                ):
-                    stories.append(
-                        story
-                    )
+                if story and not story.get("error"):
+
+                    stories.append(story)
 
             except Exception as e:
 
