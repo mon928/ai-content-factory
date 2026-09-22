@@ -1,33 +1,26 @@
 """
 SOFIA LUXURY STORY
-AI IMAGE GENERATOR
+MEDIA RESOLVER
 
-Generation order:
-1. Pollinations
-2. Gemini 3.1 Flash Image using Sofia reference
-3. Local Sofia reference fallback
+No AI image generation.
 
-The Gemini fallback is used when Pollinations has no balance,
-fails, or is unavailable.
-
-Designed for GitHub Actions.
+Priority:
+1. User library assets
+2. Sofia reference
+3. Pexels videos
+4. Pexels photos
 """
 
 import os
-import time
-import base64
+import re
+import json
+import hashlib
 from pathlib import Path
-from io import BytesIO
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional, Any
 
 import requests
 from loguru import logger
-from PIL import Image, ImageEnhance, ImageFilter
 
-
-# =========================================================
-# PROJECT SETTINGS
-# =========================================================
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -38,76 +31,45 @@ SOFIA_REFERENCE = (
     / "sofia_reference.jpg"
 )
 
-POLLINATIONS_API_KEY = os.getenv(
-    "POLLINATIONS_API_KEY"
+LOCAL_LIBRARY = (
+    PROJECT_ROOT
+    / "assets"
+    / "library"
 )
 
-GEMINI_API_KEY = os.getenv(
-    "GEMINI_API_KEY"
+OUTPUT_MEDIA = (
+    PROJECT_ROOT
+    / "output"
+    / "media"
 )
 
-POLLINATIONS_IMAGE_URL = (
-    "https://gen.pollinations.ai/v1/images/generations"
+PEXELS_API_KEY = os.getenv(
+    "PEXELS_API_KEY",
+    ""
 )
 
-POLLINATIONS_EDIT_URL = (
-    "https://gen.pollinations.ai/v1/images/edits"
+PEXELS_PHOTO_SEARCH = (
+    "https://api.pexels.com/v1/search"
 )
 
-GEMINI_INTERACTIONS_URL = (
-    "https://generativelanguage.googleapis.com/v1beta/interactions"
+PEXELS_VIDEO_SEARCH = (
+    "https://api.pexels.com/v1/videos/search"
 )
 
-DEFAULT_POLLINATIONS_MODEL = (
-    "black-forest-labs/flux.1-schnell"
-)
+IMAGE_EXTENSIONS = {
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".webp",
+}
 
-DEFAULT_GEMINI_MODEL = (
-    "gemini-3.1-flash-image"
-)
+VIDEO_EXTENSIONS = {
+    ".mp4",
+    ".mov",
+    ".m4v",
+    ".webm",
+}
 
-
-# =========================================================
-# SOFIA IDENTITY
-# =========================================================
-
-SOFIA_IDENTITY = """
-Sofia is the central character of Sofia Luxury Story.
-
-Use the supplied Sofia reference image as the identity reference.
-
-Preserve Sofia's recognizable facial identity, facial structure,
-skin tone, hairstyle, age appearance and overall recognizable look.
-
-She must look like the SAME WOMAN from the supplied reference.
-
-The reference image is an IDENTITY reference, NOT a background
-or pose reference.
-
-Sofia must be allowed to appear in completely different:
-- locations
-- poses
-- camera angles
-- outfits
-- activities
-- lighting
-- environments
-- luxury settings
-
-Do NOT simply reproduce the original photograph.
-
-Do NOT copy the original bathroom.
-Do NOT copy the original mountain background.
-Do NOT copy the original pose.
-Do NOT copy the original composition.
-
-Create a genuinely new photograph while preserving Sofia's identity.
-"""
-
-
-# =========================================================
-# IMAGE GENERATOR
-# =========================================================
 
 class AIImageGenerator:
 
@@ -115,1399 +77,910 @@ class AIImageGenerator:
         self,
         output_dir: str = "output/images"
     ):
-        self.output_dir = Path(output_dir)
+
+        self.output_dir = Path(
+            output_dir
+        )
 
         self.output_dir.mkdir(
             parents=True,
             exist_ok=True
         )
 
-        self.pollinations_model = os.getenv(
-            "POLLINATIONS_IMAGE_MODEL",
-            DEFAULT_POLLINATIONS_MODEL
+        LOCAL_LIBRARY.mkdir(
+            parents=True,
+            exist_ok=True
         )
 
-        self.gemini_model = os.getenv(
-            "GEMINI_IMAGE_MODEL",
-            DEFAULT_GEMINI_MODEL
+        OUTPUT_MEDIA.mkdir(
+            parents=True,
+            exist_ok=True
         )
 
-        self.pollinations_api_key = (
-            os.getenv("POLLINATIONS_API_KEY")
-            or POLLINATIONS_API_KEY
+        self.pexels_key = (
+            os.getenv("PEXELS_API_KEY")
+            or PEXELS_API_KEY
+            or ""
         )
 
-        self.gemini_api_key = (
-            os.getenv("GEMINI_API_KEY")
-            or GEMINI_API_KEY
-        )
-
-        self.pollinations_disabled = False
-
-        self.gemini_disabled = False
-
-        logger.info(
-            "🎨 Sofia AI Image Generator initialized"
+        self.local_assets = (
+            self._scan_local_assets()
         )
 
         logger.info(
-            f"Pollinations model: "
-            f"{self.pollinations_model}"
+            "SOFIA MEDIA RESOLVER INITIALIZED"
         )
 
         logger.info(
-            f"Gemini model: "
-            f"{self.gemini_model}"
+            f"Local library assets: "
+            f"{len(self.local_assets)}"
         )
 
         if SOFIA_REFERENCE.exists():
+
             logger.info(
-                "✅ Sofia reference found: "
-                f"{SOFIA_REFERENCE}"
-            )
-        else:
-            logger.warning(
-                "⚠️ Sofia reference NOT found: "
-                f"{SOFIA_REFERENCE}"
+                "Sofia reference found."
             )
 
-        if self.gemini_api_key:
+        else:
+
+            logger.warning(
+                "Sofia reference not found."
+            )
+
+        if self.pexels_key:
+
             logger.info(
-                "✅ Gemini API key detected."
-            )
-        else:
-            logger.warning(
-                "⚠️ GEMINI_API_KEY is not available."
-            )
-
-
-    # =====================================================
-    # POLLINATIONS HEADERS
-    # =====================================================
-
-    def _pollinations_headers(self) -> dict:
-
-        headers = {
-            "Accept": (
-                "application/json, "
-                "image/jpeg, "
-                "image/png"
-            )
-        }
-
-        if self.pollinations_api_key:
-            headers["Authorization"] = (
-                "Bearer "
-                + self.pollinations_api_key
-            )
-
-        return headers
-
-
-    # =====================================================
-    # FIT IMAGE TO REQUESTED SIZE
-    # =====================================================
-
-    def _fit_image(
-        self,
-        image: Image.Image,
-        width: int,
-        height: int
-    ) -> Image.Image:
-
-        image = image.convert("RGB")
-
-        target_ratio = (
-            width / height
-        )
-
-        source_ratio = (
-            image.width / image.height
-        )
-
-        if source_ratio > target_ratio:
-
-            new_width = int(
-                image.height * target_ratio
-            )
-
-            left = (
-                image.width - new_width
-            ) // 2
-
-            image = image.crop(
-                (
-                    left,
-                    0,
-                    left + new_width,
-                    image.height
-                )
+                "Pexels API available."
             )
 
         else:
 
-            new_height = int(
-                image.width / target_ratio
-            )
-
-            top = (
-                image.height - new_height
-            ) // 2
-
-            image = image.crop(
-                (
-                    0,
-                    top,
-                    image.width,
-                    top + new_height
-                )
-            )
-
-        return image.resize(
-            (width, height),
-            Image.Resampling.LANCZOS
-        )
-
-
-    # =====================================================
-    # LOCAL FALLBACK
-    # =====================================================
-
-    def _create_local_fallback(
-        self,
-        output_path: Path,
-        width: int,
-        height: int,
-        scene_number: int = 0
-    ) -> str:
-
-        if not SOFIA_REFERENCE.exists():
-
-            logger.error(
-                "❌ Sofia reference does not exist."
-            )
-
-            return ""
-
-        try:
-
-            image = Image.open(
-                SOFIA_REFERENCE
-            ).convert("RGB")
-
-            image = self._fit_image(
-                image,
-                width,
-                height
-            )
-
-            variation = (
-                scene_number % 6
-            )
-
-            if variation == 1:
-
-                image = ImageEnhance.Brightness(
-                    image
-                ).enhance(1.06)
-
-            elif variation == 2:
-
-                image = ImageEnhance.Contrast(
-                    image
-                ).enhance(1.08)
-
-            elif variation == 3:
-
-                image = ImageEnhance.Color(
-                    image
-                ).enhance(1.06)
-
-            elif variation == 4:
-
-                image = image.filter(
-                    ImageFilter.SMOOTH
-                )
-
-            elif variation == 5:
-
-                image = ImageEnhance.Sharpness(
-                    image
-                ).enhance(1.15)
-
-            image.save(
-                output_path,
-                "JPEG",
-                quality=95
-            )
-
             logger.warning(
-                "⚠️ Local Sofia fallback created: "
-                f"{output_path}"
+                "PEXELS_API_KEY not available."
             )
 
-            return str(output_path)
+    # =========================================================
+    # LOCAL ASSETS
+    # =========================================================
 
-        except Exception as e:
+    def _scan_local_assets(
+        self
+    ) -> List[Path]:
 
-            logger.error(
-                "❌ Local fallback failed: "
-                f"{e}"
-            )
+        assets = []
 
-            return ""
+        if not LOCAL_LIBRARY.exists():
+            return assets
 
+        for path in LOCAL_LIBRARY.rglob("*"):
 
-    # =====================================================
-    # SAVE POLLINATIONS RESPONSE
-    # =====================================================
+            if not path.is_file():
+                continue
 
-    def _save_pollinations_response(
-        self,
-        response,
-        output_path: Path
-    ) -> str:
-
-        try:
-
-            content_type = (
-                response.headers.get(
-                    "content-type",
-                    ""
-                ).lower()
-            )
-
-            if (
-                content_type.startswith("image/")
-                or response.content[:8]
-                == b"\x89PNG\r\n\x1a\n"
-                or response.content[:2]
-                == b"\xff\xd8"
+            if path.suffix.lower() in (
+                IMAGE_EXTENSIONS
+                | VIDEO_EXTENSIONS
             ):
 
-                image = Image.open(
-                    BytesIO(response.content)
-                ).convert("RGB")
+                assets.append(path)
 
-                image.save(
-                    output_path,
-                    "JPEG",
-                    quality=95
+        return sorted(
+            assets,
+            key=lambda p:
+                p.name.lower()
+        )
+
+    # =========================================================
+    # TEXT HELPERS
+    # =========================================================
+
+    def _text(
+        self,
+        value: Any
+    ) -> str:
+
+        if value is None:
+            return ""
+
+        return str(value).strip()
+
+    def _clean_query(
+        self,
+        text: str
+    ) -> str:
+
+        text = re.sub(
+            r"[^a-zA-Z0-9\s-]",
+            " ",
+            text
+        )
+
+        text = " ".join(
+            text.split()
+        )
+
+        return text[:120]
+
+    # =========================================================
+    # SEARCH QUERY
+    # =========================================================
+
+    def make_search_query(
+        self,
+        scene: Dict[str, Any]
+    ) -> str:
+
+        explicit = (
+            scene.get("pexels_query")
+            or scene.get("visual_search")
+            or scene.get("search_keywords")
+        )
+
+        if explicit:
+
+            query = self._text(
+                explicit
+            )
+
+            if query:
+                return self._clean_query(
+                    query
                 )
 
-                return str(output_path)
+        parts = [
+            self._text(
+                scene.get("location")
+            ),
+            self._text(
+                scene.get("action")
+            ),
+            self._text(
+                scene.get("luxury_detail")
+            ),
+        ]
 
-            data = response.json()
+        combined = " ".join(
+            part
+            for part in parts
+            if part
+        )
 
-            image_url = None
+        words = combined.split()
 
-            if isinstance(data, dict):
+        query = " ".join(
+            words[:14]
+        )
 
-                items = data.get("data")
+        query = self._clean_query(
+            query
+        )
 
-                if (
-                    isinstance(items, list)
-                    and items
+        if not query:
+
+            query = (
+                "luxury lifestyle "
+                "cinematic"
+            )
+
+        return query
+
+    # =========================================================
+    # SOFIA DETECTION
+    # =========================================================
+
+    def scene_needs_sofia(
+        self,
+        scene: Dict[str, Any]
+    ) -> bool:
+
+        explicit = scene.get(
+            "sofia_visible"
+        )
+
+        if explicit is not None:
+            return bool(explicit)
+
+        visual_type = self._text(
+            scene.get("visual_type")
+        ).lower()
+
+        if visual_type == "sofia":
+            return True
+
+        text = " ".join([
+            self._text(
+                scene.get("action")
+            ),
+            self._text(
+                scene.get("visual_prompt")
+            ),
+            self._text(
+                scene.get("narration")
+            ),
+        ]).lower()
+
+        return any(
+            word in text
+            for word in [
+                "sofia",
+                "she",
+                "her",
+                "woman",
+            ]
+        )
+
+    # =========================================================
+    # LOCAL ASSET MATCHING
+    # =========================================================
+
+    def _asset_score(
+        self,
+        path: Path,
+        query: str
+    ) -> int:
+
+        filename = path.stem.lower()
+
+        query_words = {
+            word.lower()
+            for word in query.split()
+            if len(word) >= 4
+        }
+
+        score = 0
+
+        for word in query_words:
+
+            if word in filename:
+                score += 3
+
+        return score
+
+    def find_local_asset(
+        self,
+        scene: Dict[str, Any]
+    ) -> str:
+
+        if not self.local_assets:
+            return ""
+
+        query = self.make_search_query(
+            scene
+        )
+
+        ranked = []
+
+        for path in self.local_assets:
+
+            score = self._asset_score(
+                path,
+                query
+            )
+
+            ranked.append(
+                (
+                    score,
+                    path
+                )
+            )
+
+        ranked.sort(
+            key=lambda item: (
+                item[0],
+                item[1].name.lower()
+            ),
+            reverse=True
+        )
+
+        best_score, best_path = ranked[0]
+
+        if best_score <= 0:
+            return ""
+
+        logger.info(
+            f"Local asset selected: "
+            f"{best_path.name}"
+        )
+
+        return str(best_path)
+
+    # =========================================================
+    # SOFIA REFERENCE
+    # =========================================================
+
+    def get_sofia_reference(
+        self
+    ) -> str:
+
+        if SOFIA_REFERENCE.exists():
+
+            return str(
+                SOFIA_REFERENCE
+            )
+
+        return ""
+
+    # =========================================================
+    # PEXELS HEADERS
+    # =========================================================
+
+    def _pexels_headers(
+        self
+    ) -> Dict[str, str]:
+
+        return {
+            "Authorization":
+                self.pexels_key,
+            "User-Agent":
+                "Sofia-Luxury-Story/1.0",
+        }
+
+    # =========================================================
+    # SAFE FILE NAME
+    # =========================================================
+
+    def _safe_filename(
+        self,
+        prefix: str,
+        query: str,
+        extension: str
+    ) -> str:
+
+        digest = hashlib.md5(
+            query.encode("utf-8")
+        ).hexdigest()[:12]
+
+        return (
+            f"{prefix}_{digest}"
+            f"{extension}"
+        )
+
+    # =========================================================
+    # DOWNLOAD
+    # =========================================================
+
+    def _download(
+        self,
+        url: str,
+        destination: Path
+    ) -> bool:
+
+        try:
+
+            response = requests.get(
+                url,
+                timeout=30,
+                stream=True
+            )
+
+            if response.status_code != 200:
+
+                logger.warning(
+                    "Media download failed: "
+                    f"{response.status_code}"
+                )
+
+                return False
+
+            destination.parent.mkdir(
+                parents=True,
+                exist_ok=True
+            )
+
+            with open(
+                destination,
+                "wb"
+            ) as output:
+
+                for chunk in response.iter_content(
+                    chunk_size=1024 * 1024
                 ):
 
-                    first = items[0]
+                    if chunk:
+                        output.write(chunk)
 
-                    if isinstance(first, dict):
+            return (
+                destination.exists()
+                and destination.stat().st_size
+                > 5000
+            )
 
-                        image_url = first.get(
-                            "url"
-                        )
+        except Exception as exc:
 
-                        b64 = first.get(
-                            "b64_json"
-                        )
+            logger.warning(
+                f"Download failed: {exc}"
+            )
 
-                        if b64:
+            return False
 
-                            image_bytes = (
-                                base64.b64decode(
-                                    b64
-                                )
-                            )
+    # =========================================================
+    # PEXELS PHOTO
+    # =========================================================
 
-                            image = Image.open(
-                                BytesIO(
-                                    image_bytes
-                                )
-                            ).convert("RGB")
+    def search_pexels_photo(
+        self,
+        query: str,
+        index: int = 0
+    ) -> str:
 
-                            image.save(
-                                output_path,
-                                "JPEG",
-                                quality=95
-                            )
+        if not self.pexels_key:
+            return ""
 
-                            return str(
-                                output_path
-                            )
+        query = self._clean_query(
+            query
+        )
 
-                image_url = (
-                    image_url
-                    or data.get("url")
-                    or data.get("image_url")
+        try:
+
+            response = requests.get(
+                PEXELS_PHOTO_SEARCH,
+                headers=self._pexels_headers(),
+                params={
+                    "query": query,
+                    "orientation": "portrait",
+                    "size": "medium",
+                    "per_page": 8,
+                    "page": 1,
+                },
+                timeout=15
+            )
+
+            if response.status_code != 200:
+
+                logger.warning(
+                    "Pexels photo search failed: "
+                    f"{response.status_code}"
                 )
 
-            if image_url:
+                return ""
 
-                image_response = requests.get(
+            data = response.json()
+
+            photos = data.get(
+                "photos",
+                []
+            )
+
+            if not photos:
+                return ""
+
+            photo = photos[
+                index % len(photos)
+            ]
+
+            src = photo.get(
+                "src",
+                {}
+            )
+
+            image_url = (
+                src.get("portrait")
+                or src.get("large")
+                or src.get("medium")
+            )
+
+            if not image_url:
+                return ""
+
+            filename = self._safe_filename(
+                "pexels_photo",
+                f"{query}_{index}",
+                ".jpg"
+            )
+
+            destination = (
+                OUTPUT_MEDIA
+                / filename
+            )
+
+            if not destination.exists():
+
+                if not self._download(
                     image_url,
-                    timeout=90
-                )
+                    destination
+                ):
+                    return ""
 
-                image_response.raise_for_status()
-
-                image = Image.open(
-                    BytesIO(
-                        image_response.content
-                    )
-                ).convert("RGB")
-
-                image.save(
-                    output_path,
-                    "JPEG",
-                    quality=95
-                )
-
-                return str(output_path)
-
-            logger.error(
-                "❌ Pollinations returned "
-                "no usable image."
+            self._save_attribution(
+                photo=photo,
+                media_type="photo"
             )
-
-            return ""
-
-        except Exception as e:
-
-            logger.error(
-                "❌ Could not save Pollinations "
-                f"image: {e}"
-            )
-
-            return ""
-
-
-    # =====================================================
-    # POLLINATIONS TEXT IMAGE
-    # =====================================================
-
-    def _generate_text_image(
-        self,
-        prompt: str,
-        output_path: Path,
-        width: int,
-        height: int,
-        scene_number: int = 0
-    ) -> str:
-
-        if self.pollinations_disabled:
-            return ""
-
-        if not self.pollinations_api_key:
-
-            logger.warning(
-                "⚠️ POLLINATIONS_API_KEY missing."
-            )
-
-            return ""
-
-        payload = {
-            "prompt": prompt,
-            "model": self.pollinations_model,
-            "size": f"{width}x{height}",
-            "n": 1,
-            "response_format": "b64_json"
-        }
-
-        try:
-
-            response = requests.post(
-                POLLINATIONS_IMAGE_URL,
-                headers={
-                    **self._pollinations_headers(),
-                    "Content-Type":
-                        "application/json"
-                },
-                json=payload,
-                timeout=180
-            )
-
-            if response.status_code != 200:
-
-                logger.warning(
-                    "⚠️ Pollinations HTTP "
-                    f"{response.status_code}: "
-                    f"{response.text[:400]}"
-                )
-
-                if response.status_code == 402:
-
-                    logger.warning(
-                        "⚠️ Pollinations balance "
-                        "is insufficient."
-                    )
-
-                    self.pollinations_disabled = True
-
-                return ""
-
-            return self._save_pollinations_response(
-                response,
-                output_path
-            )
-
-        except Exception as e:
-
-            logger.warning(
-                "⚠️ Pollinations request failed: "
-                f"{e}"
-            )
-
-            return ""
-
-
-    # =====================================================
-    # POLLINATIONS REFERENCE EDIT
-    # =====================================================
-
-    def _generate_reference_image(
-        self,
-        prompt: str,
-        output_path: Path,
-        width: int,
-        height: int,
-        scene_number: int = 0
-    ) -> str:
-
-        if self.pollinations_disabled:
-            return ""
-
-        if not self.pollinations_api_key:
-            return ""
-
-        if not SOFIA_REFERENCE.exists():
-            return ""
-
-        try:
-
-            with open(
-                SOFIA_REFERENCE,
-                "rb"
-            ) as image_file:
-
-                files = {
-                    "image": (
-                        SOFIA_REFERENCE.name,
-                        image_file,
-                        "image/jpeg"
-                    )
-                }
-
-                data = {
-                    "prompt": prompt,
-                    "model":
-                        self.pollinations_model,
-                    "size":
-                        f"{width}x{height}",
-                    "response_format":
-                        "b64_json"
-                }
-
-                response = requests.post(
-                    POLLINATIONS_EDIT_URL,
-                    headers={
-                        "Authorization":
-                            "Bearer "
-                            + self.pollinations_api_key
-                    },
-                    files=files,
-                    data=data,
-                    timeout=240
-                )
-
-            if response.status_code != 200:
-
-                logger.warning(
-                    "⚠️ Pollinations reference "
-                    "edit HTTP "
-                    f"{response.status_code}: "
-                    f"{response.text[:400]}"
-                )
-
-                if response.status_code == 402:
-
-                    self.pollinations_disabled = True
-
-                return ""
-
-            return self._save_pollinations_response(
-                response,
-                output_path
-            )
-
-        except Exception as e:
-
-            logger.warning(
-                "⚠️ Pollinations reference "
-                f"generation failed: {e}"
-            )
-
-            return ""
-
-
-    # =====================================================
-    # GEMINI REFERENCE IMAGE
-    # =====================================================
-
-    def _generate_gemini_reference_image(
-        self,
-        prompt: str,
-        output_path: Path,
-        width: int,
-        height: int,
-        scene_number: int = 0
-    ) -> str:
-
-        if self.gemini_disabled:
-            return ""
-
-        if not self.gemini_api_key:
-
-            logger.warning(
-                "⚠️ GEMINI_API_KEY is missing."
-            )
-
-            return ""
-
-        if not SOFIA_REFERENCE.exists():
-
-            logger.warning(
-                "⚠️ Sofia reference image "
-                "does not exist."
-            )
-
-            return ""
-
-        try:
-
-            with open(
-                SOFIA_REFERENCE,
-                "rb"
-            ) as f:
-
-                reference_bytes = f.read()
-
-            reference_b64 = (
-                base64.b64encode(
-                    reference_bytes
-                ).decode("utf-8")
-            )
-
-            aspect_ratio = (
-                "9:16"
-                if height > width
-                else "16:9"
-            )
-
-            scene_variation = [
-                "Use a medium full-body composition.",
-                "Use a three-quarter camera angle.",
-                "Use a low cinematic camera angle.",
-                "Use a slightly elevated camera angle.",
-                "Use a candid walking composition.",
-                "Use a dramatic editorial portrait composition.",
-                "Use a wide environmental composition.",
-                "Use a close cinematic fashion composition."
-            ]
-
-            variation = scene_variation[
-                scene_number
-                % len(scene_variation)
-            ]
-
-            gemini_prompt = f"""
-Create a completely NEW photorealistic cinematic
-photograph for Sofia Luxury Story.
-
-{SOFIA_IDENTITY}
-
-SCENE:
-{prompt}
-
-CAMERA:
-{variation}
-
-IMPORTANT VISUAL REQUIREMENTS:
-
-1. Sofia must remain the same recognizable woman
-   from the supplied reference image.
-
-2. Preserve her facial identity.
-
-3. Change the environment completely according
-   to the scene description.
-
-4. Change the pose according to the scene.
-
-5. Change the camera angle according to the scene.
-
-6. Change the composition.
-
-7. Change the lighting when appropriate.
-
-8. Change her outfit when the story requires it.
-
-9. Do NOT reproduce the bathroom from the reference.
-
-10. Do NOT reproduce the mountain background
-    from the reference.
-
-11. Do NOT reproduce the exact original pose.
-
-12. Do NOT simply crop, zoom, recolor, or duplicate
-    the supplied photograph.
-
-13. The result must look like a newly photographed
-    scene from Sofia's story.
-
-14. Sofia should be naturally integrated into
-    the new environment.
-
-15. Photorealistic skin and realistic human anatomy.
-
-16. Premium luxury editorial photography.
-
-17. Cinematic lighting.
-
-18. Natural proportions.
-
-19. No text.
-
-20. No captions.
-
-21. No logos.
-
-22. No watermark added by the prompt.
-
-The supplied image is only for Sofia's identity.
-Generate a new scene.
-"""
-
-            payload = {
-                "model": self.gemini_model,
-
-                "input": [
-                    {
-                        "type": "text",
-                        "text": gemini_prompt
-                    },
-                    {
-                        "type": "image",
-                        "mime_type": "image/jpeg",
-                        "data": reference_b64
-                    }
-                ],
-
-                "response_format": {
-                    "type": "image",
-                    "mime_type": "image/jpeg",
-                    "aspect_ratio": aspect_ratio,
-                    "image_size": "1K"
-                }
-            }
 
             logger.info(
-                "🤖 Generating NEW Sofia scene "
-                "with Gemini..."
+                "Pexels photo selected: "
+                f"{photo.get('id')}"
             )
 
-            response = requests.post(
-                GEMINI_INTERACTIONS_URL,
-                headers={
-                    "x-goog-api-key":
-                        self.gemini_api_key,
-                    "Content-Type":
-                        "application/json"
+            return str(destination)
+
+        except Exception as exc:
+
+            logger.warning(
+                f"Pexels photo search error: "
+                f"{exc}"
+            )
+
+            return ""
+
+    # =========================================================
+    # PEXELS VIDEO
+    # =========================================================
+
+    def search_pexels_video(
+        self,
+        query: str,
+        index: int = 0
+    ) -> str:
+
+        if not self.pexels_key:
+            return ""
+
+        query = self._clean_query(
+            query
+        )
+
+        try:
+
+            response = requests.get(
+                PEXELS_VIDEO_SEARCH,
+                headers=self._pexels_headers(),
+                params={
+                    "query": query,
+                    "orientation": "portrait",
+                    "size": "medium",
+                    "per_page": 8,
+                    "page": 1,
                 },
-                json=payload,
-                timeout=300
+                timeout=15
             )
 
             if response.status_code != 200:
 
                 logger.warning(
-                    "⚠️ Gemini HTTP "
-                    f"{response.status_code}: "
-                    f"{response.text[:800]}"
+                    "Pexels video search failed: "
+                    f"{response.status_code}"
                 )
 
                 return ""
 
             data = response.json()
 
-            image_b64 = (
-                self._find_image_base64(
-                    data
-                )
+            videos = data.get(
+                "videos",
+                []
             )
 
-            if not image_b64:
-
-                logger.warning(
-                    "⚠️ Gemini response did not "
-                    "contain image data."
-                )
-
+            if not videos:
                 return ""
 
-            image_bytes = (
-                base64.b64decode(
-                    image_b64
+            video = videos[
+                index % len(videos)
+            ]
+
+            files = video.get(
+                "video_files",
+                []
+            )
+
+            if not files:
+                return ""
+
+            portrait_files = [
+                item
+                for item in files
+                if (
+                    item.get("width", 0)
+                    < item.get("height", 0)
                 )
+            ]
+
+            candidates = (
+                portrait_files
+                or files
             )
 
-            image = Image.open(
-                BytesIO(image_bytes)
-            ).convert("RGB")
-
-            image = self._fit_image(
-                image,
-                width,
-                height
+            candidates.sort(
+                key=lambda item:
+                    item.get(
+                        "width",
+                        0
+                    ),
+                reverse=True
             )
 
-            image.save(
-                output_path,
-                "JPEG",
-                quality=95
+            video_file = candidates[0]
+
+            video_url = video_file.get(
+                "link"
+            )
+
+            if not video_url:
+                return ""
+
+            filename = self._safe_filename(
+                "pexels_video",
+                f"{query}_{index}",
+                ".mp4"
+            )
+
+            destination = (
+                OUTPUT_MEDIA
+                / filename
+            )
+
+            if not destination.exists():
+
+                if not self._download(
+                    video_url,
+                    destination
+                ):
+                    return ""
+
+            self._save_attribution(
+                video=video,
+                media_type="video"
             )
 
             logger.info(
-                "✅ NEW Gemini Sofia scene saved: "
-                f"{output_path}"
+                "Pexels video selected: "
+                f"{video.get('id')}"
             )
 
-            return str(output_path)
+            return str(destination)
 
-        except Exception as e:
+        except Exception as exc:
 
             logger.warning(
-                "⚠️ Gemini image generation "
-                f"failed: {e}"
+                f"Pexels video search error: "
+                f"{exc}"
             )
 
             return ""
 
+    # =========================================================
+    # ATTRIBUTION
+    # =========================================================
 
-    # =====================================================
-    # FIND IMAGE DATA INSIDE GEMINI RESPONSE
-    # =====================================================
-
-    def _find_image_base64(
+    def _save_attribution(
         self,
-        value
-    ) -> Optional[str]:
+        photo: Optional[Dict[str, Any]] = None,
+        video: Optional[Dict[str, Any]] = None,
+        media_type: str = ""
+    ):
 
-        if isinstance(value, dict):
-
-            # Direct output_image format
-            output_image = value.get(
-                "output_image"
-            )
-
-            if isinstance(
-                output_image,
-                dict
-            ):
-
-                data = output_image.get(
-                    "data"
-                )
-
-                if isinstance(
-                    data,
-                    str
-                ) and data:
-
-                    return data
-
-            # Generic image object
-            if (
-                value.get("type") == "image"
-                and isinstance(
-                    value.get("data"),
-                    str
-                )
-            ):
-
-                return value["data"]
-
-            for key, item in value.items():
-
-                # Avoid recursively scanning
-                # enormous metadata fields.
-                if key in {
-                    "text",
-                    "search_suggestions"
-                }:
-                    continue
-
-                result = (
-                    self._find_image_base64(
-                        item
-                    )
-                )
-
-                if result:
-                    return result
-
-        elif isinstance(value, list):
-
-            for item in value:
-
-                result = (
-                    self._find_image_base64(
-                        item
-                    )
-                )
-
-                if result:
-                    return result
-
-        return None
-
-
-    # =====================================================
-    # GEMINI TEXT-TO-IMAGE
-    # =====================================================
-
-    def _generate_gemini_text_image(
-        self,
-        prompt: str,
-        output_path: Path,
-        width: int,
-        height: int,
-        scene_number: int = 0
-    ) -> str:
-
-        if self.gemini_disabled:
-            return ""
-
-        if not self.gemini_api_key:
-            return ""
+        attribution_file = (
+            OUTPUT_MEDIA
+            / "pexels_attribution.json"
+        )
 
         try:
 
-            aspect_ratio = (
-                "9:16"
-                if height > width
-                else "16:9"
-            )
-
-            payload = {
-
-                "model":
-                    self.gemini_model,
-
-                "input": [
-                    {
-                        "type": "text",
-                        "text": prompt
-                    }
-                ],
-
-                "response_format": {
-                    "type": "image",
-                    "mime_type": "image/jpeg",
-                    "aspect_ratio":
-                        aspect_ratio,
-                    "image_size": "1K"
-                }
-            }
-
-            response = requests.post(
-                GEMINI_INTERACTIONS_URL,
-                headers={
-                    "x-goog-api-key":
-                        self.gemini_api_key,
-                    "Content-Type":
-                        "application/json"
-                },
-                json=payload,
-                timeout=300
-            )
-
-            if response.status_code != 200:
-
-                logger.warning(
-                    "⚠️ Gemini text image HTTP "
-                    f"{response.status_code}: "
-                    f"{response.text[:600]}"
-                )
-
-                return ""
-
-            data = response.json()
-
-            image_b64 = (
-                self._find_image_base64(
-                    data
-                )
-            )
-
-            if not image_b64:
-                return ""
-
-            image_bytes = (
-                base64.b64decode(
-                    image_b64
-                )
-            )
-
-            image = Image.open(
-                BytesIO(image_bytes)
-            ).convert("RGB")
-
-            image = self._fit_image(
-                image,
-                width,
-                height
-            )
-
-            image.save(
-                output_path,
-                "JPEG",
-                quality=95
-            )
-
-            logger.info(
-                "✅ Gemini image saved: "
-                f"{output_path}"
-            )
-
-            return str(output_path)
-
-        except Exception as e:
-
-            logger.warning(
-                "⚠️ Gemini text generation "
-                f"failed: {e}"
-            )
-
-            return ""
-
-
-    # =====================================================
-    # MAIN IMAGE GENERATOR
-    # =====================================================
-
-    def generate_image(
-        self,
-        prompt: str,
-        style: str = "realistic",
-        width: int = 1920,
-        height: int = 1080,
-        filename: Optional[str] = None,
-        use_reference: bool = True,
-        scene_number: int = 0
-    ) -> str:
-
-        if not filename:
-
-            filename = (
-                "sofia_scene_"
-                + str(int(time.time()))
-                + ".jpg"
-            )
-
-        output_path = (
-            self.output_dir
-            / filename
-        )
-
-        style_text = {
-
-            "realistic":
-                "photorealistic cinematic photography, "
-                "luxury editorial style, natural skin, "
-                "realistic lighting",
-
-            "cinematic":
-                "cinematic photography, dramatic lighting, "
-                "premium film composition, realistic",
-
-            "luxury":
-                "ultra-luxury editorial photography, "
-                "premium fashion magazine style",
-
-            "action":
-                "cinematic action photography, "
-                "dynamic composition, realistic movement",
-
-            "travel":
-                "luxury travel photography, cinematic "
-                "composition, beautiful natural lighting",
-
-            "technology":
-                "futuristic luxury technology photography, "
-                "premium cinematic lighting"
-
-        }.get(
-            style,
-            "photorealistic cinematic photography"
-        )
-
-        final_prompt = f"""
-{SOFIA_IDENTITY}
-
-STORY SCENE:
-{prompt}
-
-VISUAL STYLE:
-{style_text}
-
-The image must be a NEW scene.
-
-Sofia remains the main visual character.
-
-Use the reference image ONLY to preserve
-Sofia's identity.
-
-The location, pose, composition,
-camera angle and lighting must be based
-on the story scene rather than the reference.
-
-No text.
-No captions.
-No logos.
-"""
-
-
-        logger.info(
-            "🎨 Generating Sofia scene "
-            f"{scene_number}: "
-            f"{prompt[:120]}"
-        )
-
-
-        # =================================================
-        # 1. TRY POLLINATIONS REFERENCE EDIT
-        # =================================================
-
-        if (
-            use_reference
-            and not self.pollinations_disabled
-            and self.pollinations_api_key
-            and SOFIA_REFERENCE.exists()
-        ):
-
-            result = (
-                self._generate_reference_image(
-                    final_prompt,
-                    output_path,
-                    width,
-                    height,
-                    scene_number
-                )
-            )
-
-            if result:
-
-                logger.info(
-                    "✅ Pollinations generated "
-                    "Sofia scene."
-                )
-
-                return result
-
-
-        # =================================================
-        # 2. TRY POLLINATIONS TEXT GENERATION
-        # =================================================
-
-        if (
-            not self.pollinations_disabled
-            and self.pollinations_api_key
-        ):
-
-            result = (
-                self._generate_text_image(
-                    final_prompt,
-                    output_path,
-                    width,
-                    height,
-                    scene_number
-                )
-            )
-
-            if result:
-
-                logger.info(
-                    "✅ Pollinations generated "
-                    "text-based scene."
-                )
-
-                return result
-
-
-        # =================================================
-        # 3. GEMINI REFERENCE GENERATION
-        # =================================================
-
-        if (
-            use_reference
-            and not self.gemini_disabled
-            and self.gemini_api_key
-            and SOFIA_REFERENCE.exists()
-        ):
-
-            logger.info(
-                "🔄 Pollinations unavailable."
-            )
-
-            logger.info(
-                "🤖 Switching to Gemini "
-                "for a NEW Sofia scene."
-            )
-
-            result = (
-                self._generate_gemini_reference_image(
-                    final_prompt,
-                    output_path,
-                    width,
-                    height,
-                    scene_number
-                )
-            )
-
-            if result:
-
-                return result
-
-
-        # =================================================
-        # 4. GEMINI TEXT GENERATION
-        # =================================================
-
-        if (
-            not self.gemini_disabled
-            and self.gemini_api_key
-        ):
-
-            logger.info(
-                "🤖 Trying Gemini text-to-image."
-            )
-
-            result = (
-                self._generate_gemini_text_image(
-                    final_prompt,
-                    output_path,
-                    width,
-                    height,
-                    scene_number
-                )
-            )
-
-            if result:
-
-                return result
-
-
-        # =================================================
-        # 5. LAST RESORT LOCAL FALLBACK
-        # =================================================
-
-        logger.warning(
-            "⚠️ All AI image generation "
-            "methods failed."
-        )
-
-        return self._create_local_fallback(
-            output_path,
-            width,
-            height,
-            scene_number
-        )
-
-
-    # =====================================================
-    # MULTIPLE SCENES
-    # =====================================================
-
-    def generate_scene_images(
-        self,
-        scenes: List[Dict],
-        style: str = "cinematic",
-        width: int = 1920,
-        height: int = 1080
-    ) -> List[str]:
-
-        image_paths = []
-
-        logger.info(
-            f"🎬 Generating "
-            f"{len(scenes)} Sofia scenes..."
-        )
-
-        for index, scene in enumerate(
-            scenes
-        ):
-
-            description = scene.get(
-                "description",
-                scene.get(
-                    "text",
-                    f"Sofia scene {index + 1}"
-                )
-            )
-
-            filename = (
-                f"scene_{index + 1:03d}.jpg"
-            )
-
-            path = self.generate_image(
-                prompt=description,
-                style=style,
-                width=width,
-                height=height,
-                filename=filename,
-                use_reference=True,
-                scene_number=index + 1
-            )
-
-            if path:
-
-                image_paths.append(
-                    path
+            if attribution_file.exists():
+
+                existing = json.loads(
+                    attribution_file.read_text(
+                        encoding="utf-8"
+                    )
                 )
 
             else:
 
-                logger.warning(
-                    f"⚠️ Scene {index + 1} "
-                    "could not be generated."
+                existing = []
+
+            item = {
+                "type": media_type
+            }
+
+            if photo:
+
+                item.update({
+                    "id":
+                        photo.get("id"),
+                    "url":
+                        photo.get("url"),
+                    "photographer":
+                        photo.get(
+                            "photographer"
+                        ),
+                    "photographer_url":
+                        photo.get(
+                            "photographer_url"
+                        ),
+                })
+
+            if video:
+
+                item.update({
+                    "id":
+                        video.get("id"),
+                    "url":
+                        video.get("url"),
+                })
+
+            existing.append(item)
+
+            unique = []
+
+            seen = set()
+
+            for entry in existing:
+
+                key = (
+                    entry.get("type"),
+                    entry.get("id")
                 )
 
-            if index < len(scenes) - 1:
+                if key in seen:
+                    continue
 
-                time.sleep(1)
+                seen.add(key)
+                unique.append(entry)
 
-        logger.info(
-            "✅ Generated "
-            f"{len(image_paths)}/"
-            f"{len(scenes)} Sofia scenes"
+            attribution_file.write_text(
+                json.dumps(
+                    unique,
+                    indent=2,
+                    ensure_ascii=False
+                ),
+                encoding="utf-8"
+            )
+
+        except Exception as exc:
+
+            logger.warning(
+                f"Attribution save failed: "
+                f"{exc}"
+            )
+
+    # =========================================================
+    # MAIN MEDIA RESOLVER
+    # =========================================================
+
+    def resolve_scene_media(
+        self,
+        scene: Dict[str, Any],
+        index: int = 0
+    ) -> Dict[str, Any]:
+
+        query = self.make_search_query(
+            scene
         )
 
-        return image_paths
+        needs_sofia = (
+            self.scene_needs_sofia(
+                scene
+            )
+        )
 
+        # -----------------------------------------------------
+        # 1. USER LIBRARY
+        # -----------------------------------------------------
 
-    # =====================================================
-    # THUMBNAIL
-    # =====================================================
+        local_asset = (
+            self.find_local_asset(
+                scene
+            )
+        )
 
-    def generate_thumbnail_bg(
+        if local_asset:
+
+            asset_type = (
+                "video"
+                if Path(
+                    local_asset
+                ).suffix.lower()
+                in VIDEO_EXTENSIONS
+                else "image"
+            )
+
+            return {
+                "path":
+                    local_asset,
+                "type":
+                    asset_type,
+                "source":
+                    "local",
+                "query":
+                    query,
+            }
+
+        # -----------------------------------------------------
+        # 2. SOFIA REFERENCE
+        # -----------------------------------------------------
+
+        if needs_sofia:
+
+            sofia = (
+                self.get_sofia_reference()
+            )
+
+            if sofia:
+
+                return {
+                    "path":
+                        sofia,
+                    "type":
+                        "image",
+                    "source":
+                        "sofia_reference",
+                    "query":
+                        query,
+                }
+
+        # -----------------------------------------------------
+        # 3. PEXELS VIDEO
+        # -----------------------------------------------------
+
+        video = (
+            self.search_pexels_video(
+                query,
+                index
+            )
+        )
+
+        if video:
+
+            return {
+                "path":
+                    video,
+                "type":
+                    "video",
+                "source":
+                    "pexels",
+                "query":
+                    query,
+            }
+
+        # -----------------------------------------------------
+        # 4. PEXELS PHOTO
+        # -----------------------------------------------------
+
+        photo = (
+            self.search_pexels_photo(
+                query,
+                index
+            )
+        )
+
+        if photo:
+
+            return {
+                "path":
+                    photo,
+                "type":
+                    "image",
+                "source":
+                    "pexels",
+                "query":
+                    query,
+            }
+
+        return {
+            "path": "",
+            "type": "",
+            "source": "",
+            "query": query,
+        }
+
+    # =========================================================
+    # COMPATIBILITY METHOD
+    # =========================================================
+
+    def generate_image(
         self,
-        topic: str,
-        niche: str = "luxury"
+        prompt: str = "",
+        style: str = "",
+        width: int = 720,
+        height: int = 1280,
+        filename: str = "",
+        use_reference: bool = False,
+        scene_number: int = 0,
+        **kwargs
     ) -> str:
 
-        prompt = f"""
-Create a premium cinematic luxury thumbnail
-background for a Sofia Luxury Story.
+        if use_reference:
 
-Topic:
-{topic}
+            return self.get_sofia_reference()
 
-Niche:
-{niche}
-
-Create a visually striking luxury environment
-with premium architecture, technology,
-fashion or lifestyle elements related to the topic.
-
-High contrast.
-Cinematic lighting.
-Premium editorial photography.
-
-No people.
-No Sofia.
-No text.
-No captions.
-No watermark.
-"""
-
-        safe_topic = "".join(
-            c if c.isalnum()
-            else "_"
-            for c in topic[:40]
-        )
-
-        filename = (
-            "thumbnail_"
-            + safe_topic
-            + ".jpg"
-        )
-
-        return self.generate_image(
-            prompt=prompt,
-            style="luxury",
-            width=1920,
-            height=1080,
-            filename=filename,
-            use_reference=False,
-            scene_number=0
-        )
-
-
-# =========================================================
-# TEST
-# =========================================================
-
-if __name__ == "__main__":
-
-    print(
-        "\n=========================================="
-    )
-
-    print(
-        "SOFIA LUXURY STORY IMAGE GENERATOR TEST"
-    )
-
-    print(
-        "==========================================\n"
-    )
-
-    generator = AIImageGenerator()
-
-    result = generator.generate_image(
-        prompt=(
-            "Sofia walking through an ultra-modern "
-            "luxury penthouse overlooking a futuristic "
-            "city at sunset, wearing an elegant "
-            "high-fashion outfit, cinematic editorial "
-            "photography, confident natural pose"
-        ),
-        style="cinematic",
-        width=720,
-        height=1280,
-        filename="sofia_test.jpg",
-        use_reference=True,
-        scene_number=1
-    )
-
-    if result:
-
-        print(
-            f"✅ Test image created: {result}"
-        )
-
-    else:
-
-        print(
-            "❌ Test image generation failed."
-        )
+        return ""
