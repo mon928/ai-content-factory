@@ -31,11 +31,10 @@ SOFIA_REFERENCE = (
     / "sofia_reference.jpg"
 )
 
-LOCAL_LIBRARY = (
-    PROJECT_ROOT
-    / "assets"
-    / "library"
-)
+LOCAL_LIBRARIES = [
+    PROJECT_ROOT / "library",
+    PROJECT_ROOT / "assets" / "library",
+]
 
 OUTPUT_MEDIA = (
     PROJECT_ROOT
@@ -87,10 +86,11 @@ class AIImageGenerator:
             exist_ok=True
         )
 
-        LOCAL_LIBRARY.mkdir(
-            parents=True,
-            exist_ok=True
-        )
+        for library_dir in LOCAL_LIBRARIES:
+            library_dir.mkdir(
+                parents=True,
+                exist_ok=True
+            )
 
         OUTPUT_MEDIA.mkdir(
             parents=True,
@@ -150,10 +150,11 @@ class AIImageGenerator:
 
         assets = []
 
-        if not LOCAL_LIBRARY.exists():
-            return assets
+        for library_dir in LOCAL_LIBRARIES:
+            if not library_dir.exists():
+                continue
 
-        for path in LOCAL_LIBRARY.rglob("*"):
+            for path in library_dir.rglob("*"):
 
             if not path.is_file():
                 continue
@@ -163,7 +164,7 @@ class AIImageGenerator:
                 | VIDEO_EXTENSIONS
             ):
 
-                assets.append(path)
+                    assets.append(path)
 
         return sorted(
             assets,
