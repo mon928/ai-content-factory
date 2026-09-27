@@ -8,7 +8,7 @@ on:
       topic:
         description: "Video topic"
         required: false
-        default: "Latest luxury technology and lifestyle trends"
+        default: "Latest luxury technology, lifestyle, travel, fashion, business or entertainment trend"
 
 jobs:
   create-video:
@@ -76,7 +76,12 @@ jobs:
                   "w",
                   encoding="utf-8"
               ) as f:
-                  json.dump(manifest, f, indent=2, ensure_ascii=False)
+                  json.dump(
+                      manifest,
+                      f,
+                      indent=2,
+                      ensure_ascii=False
+                  )
 
               print("VIDEO CREATED SUCCESSFULLY")
               print(f"Video: {video_path}")
@@ -110,13 +115,6 @@ jobs:
 
           from platforms.youtube_uploader import YouTubeUploader
 
-          access_token = os.environ.get("FB_ACCESS_TOKEN", "").strip()
-          page_id = os.environ.get("FB_PAGE_ID", "").strip()
-
-          if not access_token or not page_id:
-              print("Facebook secrets are not configured. Skipping Facebook upload.")
-              raise SystemExit(0)
-
           with open(
               "output/youtube_upload_manifest.json",
               "r",
@@ -133,7 +131,9 @@ jobs:
           uploader = YouTubeUploader()
 
           if not uploader.authenticate():
-              raise RuntimeError("YouTube authentication failed.")
+              raise RuntimeError(
+                  "YouTube authentication failed."
+              )
 
           print("YouTube authentication successful.")
 
@@ -173,6 +173,23 @@ jobs:
 
           from platforms.facebook_publisher import FacebookPublisher
 
+          access_token = os.environ.get(
+              "FB_ACCESS_TOKEN",
+              ""
+          ).strip()
+
+          page_id = os.environ.get(
+              "FB_PAGE_ID",
+              ""
+          ).strip()
+
+          if not access_token or not page_id:
+              print(
+                  "Facebook secrets are not configured. "
+                  "Skipping Facebook upload."
+              )
+              raise SystemExit(0)
+
           with open(
               "output/youtube_upload_manifest.json",
               "r",
@@ -183,17 +200,28 @@ jobs:
           video_path = manifest["video"]
           seo = manifest.get("seo", {})
 
-          title = seo.get("best_title", "Sofia Luxury Story")
-          description = seo.get("description", "")
+          title = seo.get(
+              "best_title",
+              "Sofia Luxury Story"
+          )
 
-          print("Uploading Sofia Luxury Story to Facebook...")
+          description = seo.get(
+              "description",
+              ""
+          )
+
+          print(
+              "Uploading Sofia Luxury Story to Facebook..."
+          )
 
           publisher = FacebookPublisher()
 
           if not publisher.is_configured():
-              raise RuntimeError(
-                  "Facebook secrets are present but Facebook publisher is not configured."
+              print(
+                  "Facebook publisher is not configured. "
+                  "Skipping Facebook upload."
               )
+              raise SystemExit(0)
 
           result = publisher.post_video(
               video_path,
