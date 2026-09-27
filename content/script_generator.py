@@ -1269,6 +1269,89 @@ FINAL RULES:
                 normalized_scene
             )
 
+        # -------------------------------------------------
+        # CINEMATIC MEDIA BALANCE
+        #
+        # A single Sofia reference photo cannot visually
+        # represent every scene. Keep Sofia as the main
+        # character, but deliberately reserve three scenes
+        # for real supporting B-roll from Pexels/library.
+        # This prevents the movie from becoming the same
+        # Sofia photograph repeated for several minutes.
+        # -------------------------------------------------
+
+        supporting_indices = {2, 4, 6}
+
+        if normalized and all(
+            scene.get("sofia_visible", True)
+            for scene in normalized
+        ):
+            for index in supporting_indices:
+                if index >= len(normalized):
+                    continue
+
+                scene = normalized[index]
+
+                scene["sofia_visible"] = False
+
+                location = self._safe_text(
+                    scene.get("location", "")
+                )
+
+                luxury_detail = self._safe_text(
+                    scene.get("luxury_detail", "")
+                )
+
+                action = self._safe_text(
+                    scene.get("action", "")
+                )
+
+                # Remove direct character references from
+                # the supporting-media search description.
+                support_action = re.sub(
+                    r"\\bsofia\\b|\\bshe\\b|\\bher\\b",
+                    "",
+                    action,
+                    flags=re.IGNORECASE
+                )
+
+                support_action = re.sub(
+                    r"\\s+",
+                    " ",
+                    support_action
+                ).strip()
+
+                if not support_action:
+                    support_action = (
+                        "cinematic luxury environment "
+                        "revealing an important story clue"
+                    )
+
+                scene["action"] = support_action
+
+                scene["visual_prompt"] = (
+                    f"Cinematic supporting B-roll of "
+                    f"{location}. "
+                    f"{support_action}. "
+                    f"{luxury_detail}. "
+                    "No person needs to be visible. "
+                    "Focus on the environment, vehicle, "
+                    "architecture, object or location that "
+                    "advances the story. "
+                    "Photorealistic cinematic lighting, "
+                    "premium luxury movie aesthetic."
+                )
+
+                scene["pexels_query"] = " ".join(
+                    part
+                    for part in [
+                        location,
+                        support_action,
+                        luxury_detail
+                    ]
+                    if part
+                )[:180]
+
         # Fill missing scenes.
         while len(normalized) < self.SCENE_COUNT:
 
