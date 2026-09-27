@@ -33,9 +33,7 @@ jobs:
       - name: Create Sofia video
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
-          POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}
           VIDEO_TOPIC: ${{ inputs.topic }}
         run: |
           python - <<'PY'
@@ -154,4 +152,54 @@ jobs:
               )
 
           print("SOFIA VIDEO UPLOAD COMPLETE.")
+          PY
+
+      - name: Upload completed video to Facebook
+        if: ${{ success() && secrets.FB_ACCESS_TOKEN != '' && secrets.FB_PAGE_ID != '' }}
+        env:
+          FB_ACCESS_TOKEN: ${{ secrets.FB_ACCESS_TOKEN }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+        run: |
+          python - <<'PY'
+          import json
+
+          from platforms.facebook_publisher import FacebookPublisher
+
+          with open(
+              "output/youtube_upload_manifest.json",
+              "r",
+              encoding="utf-8"
+          ) as f:
+              manifest = json.load(f)
+
+          video_path = manifest["video"]
+          seo = manifest.get("seo", {})
+
+          title = seo.get("best_title", "Sofia Luxury Story")
+          description = seo.get("description", "")
+
+          print("Uploading Sofia Luxury Story to Facebook...")
+
+          publisher = FacebookPublisher()
+
+          if not publisher.is_configured():
+              raise RuntimeError(
+                  "Facebook secrets are present but Facebook publisher is not configured."
+              )
+
+          result = publisher.post_video(
+              video_path,
+              title=title,
+              description=description
+          )
+
+          if not result.get("success"):
+              raise RuntimeError(
+                  f"Facebook upload failed: {result}"
+              )
+
+          print(
+              "Facebook upload successful: "
+              f"{result.get('video_id')}"
+          )
           PY
