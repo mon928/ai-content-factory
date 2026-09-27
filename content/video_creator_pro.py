@@ -670,94 +670,40 @@ Vertical 9:16 composition.
         scene: Dict[str, Any],
         index: int
     ) -> str:
-
         """
-        Ask the new media resolver for the actual asset.
+        Resolve real media through the dedicated media resolver.
 
-        The resolver is responsible for:
+        Priority:
+        1. User library assets
+        2. Sofia reference when Sofia is required
+        3. Pexels videos
+        4. Pexels photos
 
-        1. library
-        2. Sofia reference
-        3. Pexels video
-        4. Pexels photo
+        No AI image generation is used.
         """
-
-        prompt = self._build_media_prompt(scene)
-
-        filename = (
-            f"scene_media_{index + 1:03d}.jpg"
-        )
 
         try:
-
-            result = (
-                self.media_resolver.generate_image(
-                    prompt=prompt,
-                    style="cinematic",
-                    width=self.width,
-                    height=self.height,
-                    filename=filename,
-                    use_reference=bool(
-                        scene.get(
-                            "sofia_visible",
-                            True
-                        )
-                    ),
-                    scene_number=index + 1,
-                )
+            result = self.media_resolver.resolve_scene_media(
+                scene=scene,
+                index=index
             )
 
-            if result:
+            if isinstance(result, dict):
+                media_path = result.get("path", "")
 
-                result_path = Path(result)
+                if media_path:
+                    result_path = Path(media_path)
 
-                if result_path.exists():
+                    if result_path.exists():
+                        logger.info(
+                            f"MEDIA SELECTED: {result_path} "
+                            f"(source={result.get('source', 'unknown')})"
+                        )
+                        return str(result_path)
 
-                    logger.info(
-                        f"MEDIA SELECTED: {result_path}"
-                    )
-
-                    return str(result_path)
-
-        except TypeError:
-
-            # Compatibility with an older resolver.
-            try:
-
-                result = (
-                    self.media_resolver.generate_image(
-                        prompt=prompt,
-                        style="cinematic",
-                        width=self.width,
-                        height=self.height,
-                        filename=filename,
-                        use_reference=bool(
-                            scene.get(
-                                "sofia_visible",
-                                True
-                            )
-                        ),
-                    )
-                )
-
-                if result and Path(result).exists():
-
-                    logger.info(
-                        f"MEDIA SELECTED: {result}"
-                    )
-
-                    return str(result)
-
-            except Exception as e:
-
-                logger.warning(
-                    f"Media resolver fallback failed: {e}"
-                )
-
-        except Exception as e:
-
+        except Exception as exc:
             logger.warning(
-                f"Media resolver failed: {e}"
+                f"Real-media resolver failed: {exc}"
             )
 
         return ""
