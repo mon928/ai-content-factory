@@ -178,6 +178,10 @@ jobs:
           title = seo.get("best_title", "Sofia Luxury Story")
           description = seo.get("description", "")
 
+          if not access_token or not page_id:
+              print("Facebook secrets are not configured. Skipping Facebook upload.")
+              raise SystemExit(0)
+
           print("Uploading Sofia Luxury Story to Facebook...")
 
           publisher = FacebookPublisher()
