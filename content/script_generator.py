@@ -1309,14 +1309,14 @@ FINAL RULES:
                 # Remove direct character references from
                 # the supporting-media search description.
                 support_action = re.sub(
-                    r"\\bsofia\\b|\\bshe\\b|\\bher\\b",
+                    r"\bsofia\b|\bshe\b|\bher\b",
                     "",
                     action,
                     flags=re.IGNORECASE
                 )
 
                 support_action = re.sub(
-                    r"\\s+",
+                    r"\s+",
                     " ",
                     support_action
                 ).strip()
