@@ -1,6 +1,8 @@
 name: Sofia Luxury Video Creator
 
 on:
+  schedule:
+    - cron: "0 9 * * *"
   workflow_dispatch:
     inputs:
       topic:
@@ -46,7 +48,7 @@ jobs:
           async def main():
               scheduler = AutoScheduler(
                   language="english",
-                  niche="tech"
+                  niche="luxury"
               )
 
               result = await scheduler.create_content(
@@ -133,7 +135,7 @@ jobs:
           upload = uploader.upload_video(
               video_path,
               seo,
-              privacy="private"
+              privacy="public"
           )
 
           if not upload.get("success"):
