@@ -151,19 +151,19 @@ class AIImageGenerator:
         assets = []
 
         for library_dir in LOCAL_LIBRARIES:
+
             if not library_dir.exists():
                 continue
 
             for path in library_dir.rglob("*"):
 
-            if not path.is_file():
-                continue
+                if not path.is_file():
+                    continue
 
-            if path.suffix.lower() in (
-                IMAGE_EXTENSIONS
-                | VIDEO_EXTENSIONS
-            ):
-
+                if path.suffix.lower() in (
+                    IMAGE_EXTENSIONS
+                    | VIDEO_EXTENSIONS
+                ):
                     assets.append(path)
 
         return sorted(
@@ -855,7 +855,30 @@ class AIImageGenerator:
         )
 
         # -----------------------------------------------------
-        # 1. USER LIBRARY
+        # 1. SOFIA REFERENCE FOR SOFIA SCENES
+        # -----------------------------------------------------
+
+        if needs_sofia:
+
+            sofia = (
+                self.get_sofia_reference()
+            )
+
+            if sofia:
+
+                return {
+                    "path":
+                        sofia,
+                    "type":
+                        "image",
+                    "source":
+                        "sofia_reference",
+                    "query":
+                        query,
+                }
+
+        # -----------------------------------------------------
+        # 2. USER LIBRARY FOR SUPPORTING SCENES
         # -----------------------------------------------------
 
         local_asset = (
@@ -885,29 +908,6 @@ class AIImageGenerator:
                 "query":
                     query,
             }
-
-        # -----------------------------------------------------
-        # 2. SOFIA REFERENCE
-        # -----------------------------------------------------
-
-        if needs_sofia:
-
-            sofia = (
-                self.get_sofia_reference()
-            )
-
-            if sofia:
-
-                return {
-                    "path":
-                        sofia,
-                    "type":
-                        "image",
-                    "source":
-                        "sofia_reference",
-                    "query":
-                        query,
-                }
 
         # -----------------------------------------------------
         # 3. PEXELS VIDEO
