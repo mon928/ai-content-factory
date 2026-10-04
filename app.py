@@ -45,6 +45,7 @@ def main():
         
         page = st.radio("📋 Navigation", [
             "🏠 Dashboard",
+            "💎 Luxury Music Video",
             "🎬 Standard Video",
             "🎨 Cartoon Studio",
             "⏰ Auto-Scheduler",
@@ -68,6 +69,8 @@ def main():
     
     if page == "🏠 Dashboard":
         dashboard_page()
+    elif page == "💎 Luxury Music Video":
+        luxury_music_video_page()
     elif page == "🎬 Standard Video":
         standard_video_page()
     elif page == "🎨 Cartoon Studio":
@@ -114,6 +117,119 @@ def dashboard_page():
     - **📈 SEO Engine** - High-CTR titles, tags & descriptions
     - **🌐 4 Languages** - English, Urdu, Hindi, Punjabi
     """)
+
+def luxury_music_video_page():
+    """Luxury music-video studio using a self-hosted ComfyUI/LTX workflow."""
+    from content.luxury_music_video import (
+        ComfyUIClient, LuxuryVideoError, load_workflow,
+        prepare_workflow, create_job_manifest, DEFAULT_COMFY_URL, DEFAULT_WORKFLOW,
+    )
+
+    st.markdown("## 💎 Luxury Music Video Studio")
+    st.caption("Your photo + luxury references + your music → cinematic music video")
+
+    comfy_url = st.text_input("🖥️ Self-hosted ComfyUI URL", os.getenv("COMFYUI_URL", DEFAULT_COMFY_URL))
+    duration = st.selectbox("⏱️ Target length", [60, 120, 180], format_func=lambda x: f"{x // 60} minute" if x % 60 == 0 else f"{x} seconds")
+    aspect = st.selectbox("📐 Format", ["9:16 vertical", "16:9 landscape", "1:1 square"])
+    quality = st.selectbox("🎥 Quality", ["HD", "Full HD"])
+
+    subject = st.file_uploader(
+        "👤 Upload your main photo",
+        type=["jpg", "jpeg", "png", "webp"],
+        key="lux_subject",
+    )
+    refs = st.file_uploader(
+        "🏰 Upload mansion / car / luxury reference photos (optional)",
+        type=["jpg", "jpeg", "png", "webp"],
+        accept_multiple_files=True,
+        key="lux_refs",
+    )
+    music = st.file_uploader(
+        "🎵 Upload your music",
+        type=["mp3", "wav", "m4a", "aac", "flac"],
+        key="lux_music",
+    )
+
+    prompt = st.text_area(
+        "🎬 Describe the performance",
+        value=(
+            "Photorealistic cinematic luxury music video. Keep the supplied person "
+            "recognizable and consistent. The performer confidently sings to camera "
+            "and moves naturally through an ultra-luxury mansion and beside premium "
+            "exotic cars. Elegant wardrobe, realistic skin, dramatic cinematic "
+            "lighting, smooth camera movement, shallow depth of field, premium music-video look."
+        ),
+        height=130,
+    )
+
+    if st.button("🚀 Generate Luxury Music Video", type="primary", use_container_width=True):
+        if not subject:
+            st.error("Please upload your main photo first.")
+            return
+        if not music:
+            st.error("Please upload your music first.")
+            return
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        job_dir = Path("data/luxury_jobs") / timestamp
+        job_dir.mkdir(parents=True, exist_ok=True)
+
+        subject_path = job_dir / subject.name
+        subject_path.write_bytes(subject.getbuffer())
+
+        ref_paths = []
+        for item in refs or []:
+            p = job_dir / item.name
+            p.write_bytes(item.getbuffer())
+            ref_paths.append(str(p))
+
+        music_path = job_dir / music.name
+        music_path.write_bytes(music.getbuffer())
+
+        manifest = create_job_manifest(
+            str(subject_path), ref_paths, str(music_path), duration, prompt
+        )
+        manifest_path = job_dir / "job.json"
+        manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+        client = ComfyUIClient(comfy_url)
+        if not client.health():
+            st.warning(
+                "The project is ready, but the self-hosted ComfyUI GPU server is not "
+                "connected yet. Your job files were saved safely. Connect ComfyUI and "
+                "run this job again."
+            )
+            st.info(f"Job manifest: {manifest_path}")
+            return
+
+        try:
+            workflow = load_workflow(DEFAULT_WORKFLOW)
+            uploaded_subject = client.upload_file(subject_path, "image")
+            uploaded_refs = [client.upload_file(p, "image") for p in ref_paths]
+            prepared = prepare_workflow(
+                workflow,
+                subject_image=uploaded_subject,
+                reference_images=uploaded_refs,
+                prompt=prompt,
+                seed=int(datetime.now().timestamp()),
+            )
+            prompt_id = client.queue(prepared)
+            st.success(f"✅ Video generation queued: {prompt_id}")
+            st.info(
+                "The next stage will assemble the generated cinematic clips with your "
+                "music. This app does not use leaked or commercial API keys."
+            )
+        except LuxuryVideoError as exc:
+            st.error(str(exc))
+
+    st.markdown("---")
+    st.markdown("### 🧩 Current architecture")
+    st.write("Phone/browser → this GitHub app → self-hosted ComfyUI/LTX → cinematic clips → FFmpeg → final MP4")
+    st.caption(
+        "The video model is intentionally self-hosted. Generation is limited by the "
+        "GPU available to your own server, not by a commercial API credit balance."
+    )
+
 
 def standard_video_page():
     st.markdown("## 🎬 Create Standard Video")
